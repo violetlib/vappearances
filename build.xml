@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<project name="VAppearances" default="install" basedir=".">
+
+  <property name="debug" value="true"/>
+
+  <target name="build">
+    <ant dir="release"/>
+  </target>
+
+	<target name="install" depends="build">
+		<copy todir="${user.home}/javalib/" file="release/dist/VAppearances.jar"/>
+		<copy todir="${user.home}/build/products/jars/" file="release/dist/VAppearances.jar"/>
+	</target>
+
+	<target name="VAppearances" depends="install"/>
+
+</project>
