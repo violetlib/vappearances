@@ -313,7 +313,7 @@ void VAppearances_updateAppearance(NSAppearance *appearance)
     }
     pthread_mutex_unlock(&mutex);
     if (data != nil) {
-        NSLog(@"VAppearances: updating appearance %@", appearance.name);
+        //NSLog(@"VAppearances: updating appearance %@", appearance.name);
         invokeCallback(data, theCallback);
     }
 }
@@ -328,7 +328,7 @@ static void systemColorsChanged()
     }
     pthread_mutex_unlock(&mutex);
     if (callback && knownAppearances && knownAppearances.count > 0) {
-        NSLog(@"VAppearances: system colors changed");
+        // NSLog(@"VAppearances: system colors changed");
         // Assume that all known appearances may have changed
         for (NSAppearance *appearance in knownAppearances) {
             VAppearances_updateAppearance(appearance);
