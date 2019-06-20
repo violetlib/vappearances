@@ -3,6 +3,7 @@
 <project name="VAppearances" default="install" basedir=".">
 
   <property name="debug" value="true"/>
+  <property name="bootclasspath" location="${user.home}/javalib/boot/rt8.jar" />
 
   <target name="build">
     <ant dir="release"/>

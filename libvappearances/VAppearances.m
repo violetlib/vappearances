@@ -157,8 +157,8 @@ static NSString *obtainSystemColorsForAppearance(NSAppearance *appearance)
     registerColor(stream, NSColor.selectedTextBackgroundColor, @"selectedTextBackground");
     registerColor(stream, NSColor.keyboardFocusIndicatorColor, @"keyboardFocusIndicator");
     if (@available(macOS 10.15, *)) {
-        registerColor(stream, NSColor.systemIndigoColor, @"systemIndigo");
-        registerColor(stream, NSColor.systemTealColor, @"systemTeal");
+        registerColor(stream, [NSColor systemIndigoColor], @"systemIndigo");
+        registerColor(stream, [NSColor systemTealColor], @"systemTeal");
     } else {
         registerDefaultColor(stream, @"systemIndigo", .36, .35, .87, 1);
         registerDefaultColor(stream, @"systemTeal", .37, .80, .99, 1);
