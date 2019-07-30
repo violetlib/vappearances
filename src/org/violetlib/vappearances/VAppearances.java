@@ -90,11 +90,11 @@ public class VAppearances
     {
     }
 
-	/*
-	  The following appearance names are defined in macOS 10.14.
-	  The high contrast appearances are not available until they are used and apparently are not available by name.
-	  The dark Aqua appearances and the high contrast appearances are not available prior to macOS 10.14.
-	*/
+    /*
+      The following appearance names are defined in macOS 10.14.
+      The high contrast appearances are not available until they are used and apparently are not available by name.
+      The dark Aqua appearances and the high contrast appearances are not available prior to macOS 10.14.
+    */
 
     /** The name of the light Aqua appearance */
     public final static @NotNull String aquaAppearance = "NSAppearanceNameAqua";
