@@ -35,7 +35,6 @@ import org.jetbrains.annotations.*;
   class takes a snapshot of the system colors and makes the colors available in a {@link VAppearance} object. When the
   accent color, highlight color, or increase contrast option is changed, a new snapshot of the system colors is
   created and a new VAppearance object is created containing the new colors.
-  </p>
 
   <p>
   AppKit applications are notified of changes to system colors in two ways. Some changes use a system color change
