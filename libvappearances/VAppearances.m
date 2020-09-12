@@ -20,7 +20,7 @@ static int VERSION = 1;
 #import <Cocoa/Cocoa.h>
 #import <CoreServices/CoreServices.h>
 #import <CoreFoundation/CoreFoundation.h>
-#import <JavaNativeFoundation.h>
+#import <JavaNativeFoundation/JavaNativeFoundation.h>
 #import <Availability.h>
 
 #import "VAppearances.h"
