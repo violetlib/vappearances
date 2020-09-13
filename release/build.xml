@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
-<project basedir="." default="release" name="VAppearances">
+<project
+    basedir="."
+    default="release"
+    xmlns:resolver="antlib:org.apache.maven.resolver.ant"
+    xmlns:ivy="antlib:org.apache.ivy.ant"
+    name="VAppearances">
 
     <tstamp>
         <format property="NOW" timezone="GMT" pattern="yyyy-MM-dd'T'HH:mm:ss'Z'"/>
@@ -14,7 +19,7 @@
         <arg value="9+"/>
     </exec>
 
-    <property name="javac" value="${jdk}/bin/javac"/>
+    <property name="javac" location="${jdk}/bin/javac"/>
 
     <!-- A Java 8 boot class path is required -->
 
@@ -24,24 +29,23 @@
         <arg value="1.8"/>
     </exec>
 
-    <property name="bootclasspath" value="${jdk8}/jre/lib/rt.jar" />
+    <property name="bootclasspath" location="${jdk8}/jre/lib/rt.jar" />
 
     <property name="RELEASE" value="0.9"/>
     <property name="fullReleaseName" value="${RELEASE} ${NOW}"/>
 
-    <property name="base" value=".."/>
-    <property name="src" value="${base}/src"/>
+    <property name="base" location=".."/>
+    <property name="src" location="${base}/src"/>
     <property name="jniname" value="libvappearances"/>
-    <property name="jnisrc" value="${base}/${jniname}"/>
-    <property name="resources" value="${base}/resources"/>
-    <property name="builddir" value="out"/>
-    <property name="classesdir" value="${builddir}/classes"/>
-    <property name="headersdir" value="${builddir}/headers"/>
-    <property name="jnidir" value="${builddir}/jni"/>
-    <property name="distdir" value="dist"/>
-
-    <property name="SDKroot" value="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" />
-    <property name="libpath" value="${base}/lib/IdeaAnnotations.jar"/>
+    <property name="jnisrc" location="${base}/${jniname}"/>
+    <property name="resources" location="${base}/resources"/>
+    <property name="builddir" location="out"/>
+    <property name="classesdir" location="${builddir}/classes"/>
+    <property name="headersdir" location="${builddir}/headers"/>
+    <property name="jnidir" location="${builddir}/jni"/>
+    <property name="distdir" location="dist"/>
+    <property name="libdir" location="${base}/lib"/>
+    <property name="SDKroot" location="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" />
     <property name="cc" value="/usr/bin/cc"/>
 
     <property name="debug" value="false"/>
@@ -67,13 +71,38 @@
       </copy>
     </target>
 
-    <target name="compile8" depends="copyResources">
+    <!--
+      To use the Maven resolver, the Maven resolver ant tasks uber JAR must be built from source
+      and installed in .ant/lib.
+      See https://maven.apache.org/resolver-ant-tasks/
+    -->
+
+    <target name="resolve-maven">
+        <resolver:resolve>
+          <dependencies>
+            <dependency coords="org.jetbrains:annotations:20.1.0"/>
+          </dependencies>
+          <path refid="cp" classpath="compile"/>
+        </resolver:resolve>
+    </target>
+
+    <!--
+      To use the Ivy resolver, the Ivy uber JAR must be downloaded and installed in .ant/lib.
+      See https://ant.apache.org/ivy/
+    -->
+
+    <target name="resolve-ivy">
+        <ivy:retrieve/>
+        <ivy:cachepath pathid="cp" conf="compile"/>
+    </target>
+
+    <target name="compile8" depends="copyResources, resolve-maven">
       <mkdir dir="${classesdir}"/>
       <mkdir dir="${headersdir}"/>
 
       <javac source="1.8" target="1.8"
           bootclasspath="${bootclasspath}"
-          classpath="${libpath}"
+          classpathref="cp"
           encoding="UTF-8"
           srcdir="${src}"
           destdir="${classesdir}"
@@ -90,6 +119,7 @@
           </patternset>
       </javac>
     </target>
+
     <target name="compile-Java" depends="compile8">
     </target>
 

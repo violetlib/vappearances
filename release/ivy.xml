@@ -1,0 +1,6 @@
+<ivy-module version="2.0">
+    <info organisation="org.violetlib" module="vappearances"/>
+    <dependencies>
+        <dependency org="org.jetbrains" name="annotations" rev="20.1.0"/>
+    </dependencies>
+</ivy-module>
