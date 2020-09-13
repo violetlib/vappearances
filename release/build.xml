@@ -92,11 +92,12 @@
     -->
 
     <target name="resolve-ivy">
-        <ivy:retrieve/>
-        <ivy:cachepath pathid="cp" conf="compile"/>
+        <ivy:cachepath pathid="cp">
+            <dependency org="org.jetbrains" name="annotations" rev="20.1.0"/>
+        </ivy:cachepath>
     </target>
 
-    <target name="compile8" depends="copyResources, resolve-maven">
+    <target name="compile8" depends="copyResources, resolve-ivy">
       <mkdir dir="${classesdir}"/>
       <mkdir dir="${headersdir}"/>
 
