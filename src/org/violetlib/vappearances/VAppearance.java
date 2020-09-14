@@ -33,7 +33,7 @@ public interface VAppearance {
       * {@code NSAppearanceNameVibrantLight} – a light vibrant appearance, used in specific situations.
       * </li>
       * <li>
-      * {@code NSAppearanceNameVibrantdark} – a dark vibrant appearance, used in specific situations.
+      * {@code NSAppearanceNameVibrantDark} – a dark vibrant appearance, used in specific situations.
       * </li>
       * </ul>
       * </ul>
