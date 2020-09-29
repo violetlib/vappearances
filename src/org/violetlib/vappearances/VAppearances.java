@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Alan Snyder.
+ * Copyright (c) 2018-2020 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -22,19 +22,19 @@ import javax.swing.event.ChangeListener;
 import org.jetbrains.annotations.*;
 
 /**
-  This class keeps track of macOS appearances and their attributes. The attributes of an appearance of interest to
-  Java applications are the values of system colors.
+  This class keeps track of macOS appearances and their attributes. The attributes of an appearance of interest to Java
+  applications are the values of system colors.
 
   <p>
-  On macOS 10.14, there are four standard appearances. Previously, there was just one.
-  The standard appearances are identified using standard names.
+  On macOS 10.14, there are four standard appearances. Previously, there was just one. The standard appearances are
+  identified using standard names.
 
   <p>
   The values of system colors depends upon the selected appearance. Some system colors also depend on the selected
   accent color, the selected highlight color, and whether the increase contrast accessibility option is enabled. This
   class takes a snapshot of the system colors and makes the colors available in a {@link VAppearance} object. When the
-  accent color, highlight color, or increase contrast option is changed, a new snapshot of the system colors is
-  created and a new VAppearance object is created containing the new colors.
+  accent color, highlight color, or increase contrast option is changed, a new snapshot of the system colors is created
+  and a new VAppearance object is created containing the new colors.
 
   <p>
   AppKit applications are notified of changes to system colors in two ways. Some changes use a system color change
@@ -44,9 +44,9 @@ import org.jetbrains.annotations.*;
 
   <p>
   AppKit uses instances of NSAppearance in a tricky way. At any one time, there is a current NSAppearance object for
-  each of the standard appearance names. However, at various times, new instances are created that replace the
-  previous instances. This trickery is not important to Java, as Java identifies appearances by their standard names.
-  The current NSAppearance is determined as needed using the name.
+  each of the standard appearance names. However, at various times, new instances are created that replace the previous
+  instances. This trickery is not important to Java, as Java identifies appearances by their standard names. The current
+  NSAppearance is determined as needed using the name.
 */
 
 public class VAppearances
@@ -54,6 +54,7 @@ public class VAppearances
     /**
       A change event that identifies the appearance that has changed.
     */
+
     public static class AppearanceChangeEvent
       extends ChangeEvent
     {
@@ -118,6 +119,7 @@ public class VAppearances
 
     /**
       Return the current attributes of the specified appearance.
+
       @param appearanceName The appearance name.
       @return an object containing the currently known attributes.
       @throws IOException if the appearance is not defined or not available, or if the data could not be obtained.
@@ -156,9 +158,10 @@ public class VAppearances
     }
 
     /**
-      * Return the current effective appearance of the application.
-      * @return an object containing the currently known attributes.
-     * @throws IOException if the appearance is not defined or not available, or if the data could not be obtained.
+      Return the current effective appearance of the application.
+
+      @return an object containing the currently known attributes.
+      @throws IOException if the appearance is not defined or not available, or if the data could not be obtained.
     */
 
     public static @NotNull VAppearance getApplicationEffectiveAppearance()
@@ -241,11 +244,12 @@ public class VAppearances
     }
 
     /**
-      * Register a change listener to be called when an appearance with a new name becomes known or a previously known
-      * appearance is replaced with an appearance with the same name but different attributes (system color values).
-      * All invocations of the listener are performed on the AWT event dispatching thread. The parameter, an instance
-      * of {@link AppearanceChangeEvent}, provides the name of the new or changed appearance.
-      * @param listener The listener to be registered.
+      Register a change listener to be called when an appearance with a new name becomes known or a previously known
+      appearance is replaced with an appearance with the same name but different attributes (system color values). All
+      invocations of the listener are performed on the AWT event dispatching thread. The parameter, an instance of
+      {@link AppearanceChangeEvent}, provides the name of the new or changed appearance.
+
+      @param listener The listener to be registered.
     */
 
     public static synchronized void addChangeListener(@NotNull ChangeListener listener)
@@ -254,8 +258,9 @@ public class VAppearances
     }
 
     /**
-      * Unregister a previously registered change listener.
-      * @param listener The listener to be unregistered.
+      Unregister a previously registered change listener.
+
+      @param listener The listener to be unregistered.
     */
 
     public static synchronized void removeChangeListener(@NotNull ChangeListener listener)

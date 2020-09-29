@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Alan Snyder.
+ * Copyright (c) 2018-2020 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -20,7 +20,9 @@ import org.jetbrains.annotations.*;
   This object represents a snapshot of the attributes of a system appearance.
 */
 
-/* package private */ class VAppearanceImpl implements VAppearance {
+/* package private */ class VAppearanceImpl
+  implements VAppearance
+{
     private final @NotNull String name;
     private final boolean isDark;
     private final boolean isHighContrast;
@@ -142,12 +144,14 @@ import org.jetbrains.annotations.*;
     }
 
     @Override
-    public boolean isDark() {
+    public boolean isDark()
+    {
         return isDark;
     }
 
     @Override
-    public boolean isHighContrast() {
+    public boolean isHighContrast()
+    {
         return isHighContrast;
     }
 
