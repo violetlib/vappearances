@@ -164,6 +164,9 @@
             <arg value="-framework"/>
             <arg value="JavaNativeFoundation"/>
 
+            <arg value="-install_name"/>
+            <arg value="${jniname}.dylib"/>
+
             <arg value="${jnisrc}/VAppearances.m"/>
         </exec>
 
@@ -190,6 +193,9 @@
             <arg value="-F${JNFdir}"/>
             <arg value="-framework"/>
             <arg value="JavaNativeFoundation"/>
+
+            <arg value="-install_name"/>
+            <arg value="${jniname}.dylib"/>
 
             <arg value="${jnisrc}/VAppearances.m"/>
         </exec>
