@@ -140,65 +140,44 @@
     <target name="compile-JNI" depends="compile8">
         <mkdir dir="${jnidir}"/>
 
-        <exec executable="${cc}" failonerror="true" >
-            <arg value="-target"/>
-            <arg value="x86_64-apple-macos10.7"/>
+        <macrodef name="build-for-target">
+            <attribute name="target"/>
+            <attribute name="name"/>
+            <sequential>
+                <exec executable="${cc}" failonerror="true">
+                    <arg value="-target"/>
+                    <arg value="@{target}"/>
 
-            <arg value="-isysroot"/>
-            <arg value="${SDKroot}"/>
+                    <arg value="-isysroot"/>
+                    <arg value="${SDKroot}"/>
 
-            <arg value="-o"/>
-            <arg value="${jnidir}/${jniname}-x86.dylib"/>
+                    <arg value="-o"/>
+                    <arg value="${jnidir}/${jniname}-@{name}.dylib"/>
 
-            <arg value="-I${jdk}/include"/>
-            <arg value="-I${jdk}/include/darwin"/>
-            <arg value="-I${headersdir}"/>
+                    <arg value="-I${jdk}/include"/>
+                    <arg value="-I${jdk}/include/darwin"/>
+                    <arg value="-I${headersdir}"/>
 
-            <arg value="-dynamiclib"/>
-            <arg value="-ObjC"/>
+                    <arg value="-dynamiclib"/>
+                    <arg value="-ObjC"/>
 
-            <arg value="-framework"/>
-            <arg value="Cocoa"/>
+                    <arg value="-framework"/>
+                    <arg value="Cocoa"/>
 
-            <arg value="-F${JNFdir}"/>
-            <arg value="-framework"/>
-            <arg value="JavaNativeFoundation"/>
+                    <arg value="-F${JNFdir}"/>
+                    <arg value="-framework"/>
+                    <arg value="JavaNativeFoundation"/>
 
-            <arg value="-install_name"/>
-            <arg value="${jniname}.dylib"/>
+                    <arg value="-install_name"/>
+                    <arg value="${jniname}.dylib"/>
 
-            <arg value="${jnisrc}/VAppearances.m"/>
-        </exec>
+                    <arg value="${jnisrc}/VAppearances.m"/>
+                </exec>
+            </sequential>
+        </macrodef>
 
-        <exec executable="${cc}" failonerror="true" >
-            <arg value="-target"/>
-            <arg value="arm64-apple-macos11"/>
-
-            <arg value="-isysroot"/>
-            <arg value="${SDKroot}"/>
-
-            <arg value="-o"/>
-            <arg value="${jnidir}/${jniname}-arm.dylib"/>
-
-            <arg value="-I${jdk}/include"/>
-            <arg value="-I${jdk}/include/darwin"/>
-            <arg value="-I${headersdir}"/>
-
-            <arg value="-dynamiclib"/>
-            <arg value="-ObjC"/>
-
-            <arg value="-framework"/>
-            <arg value="Cocoa"/>
-
-            <arg value="-F${JNFdir}"/>
-            <arg value="-framework"/>
-            <arg value="JavaNativeFoundation"/>
-
-            <arg value="-install_name"/>
-            <arg value="${jniname}.dylib"/>
-
-            <arg value="${jnisrc}/VAppearances.m"/>
-        </exec>
+        <build-for-target target="x86_64-apple-macos10.7" name="x86"/>
+        <build-for-target target="arm64-apple-macos11" name="arm"/>
 
         <exec executable="${lipo}" failonerror="true">
             <arg value="${jnidir}/${jniname}-x86.dylib"/>
