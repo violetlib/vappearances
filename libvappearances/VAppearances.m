@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018 Alan Snyder.
+ * Copyright (c) 2018-2021 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -319,6 +319,7 @@ void VAppearances_updateAppearance(NSAppearance *appearance)
         data = obtainSystemColorsForAppearance(appearance);
     }
     pthread_mutex_unlock(&mutex);
+
     if (data != nil) {
         //NSLog(@"VAppearances: updating appearance %@", appearance.name);
         invokeCallback(data, theCallback);
@@ -328,24 +329,33 @@ void VAppearances_updateAppearance(NSAppearance *appearance)
 static void systemColorsChanged()
 {
     // This function is called with no lock
-    NSArray *knownAppearances = nil;
-    pthread_mutex_lock(&mutex);
-    if (appearances) {
-        knownAppearances = appearances.allValues;
+
+    // Ensure that the current appearance is registered so that it can be updated
+    NSAppearanceName appearanceName;
+    if (@available(macOS 10.14, *)) {
+        appearanceName = [NSApp.effectiveAppearance name];
+    } else {
+        appearanceName = NSAppearanceNameAqua;
     }
+    NSLog(@"VAppearances: system colors changed (%@)", appearanceName);
+    NSAppearance *appearance = [NSAppearance appearanceNamed:appearanceName];
+
+    NSArray *knownAppearances;
+    pthread_mutex_lock(&mutex);
+    ensureInitialized();
+    // Check to see if we already know about the current appearance
+    NSAppearance *existingAppearance = appearances[appearance.name];
+    if (appearance != existingAppearance) {
+        appearances[appearance.name] = appearance;
+    }
+    knownAppearances = appearances.allValues;
     pthread_mutex_unlock(&mutex);
-    if (callback && knownAppearances && knownAppearances.count > 0) {
-        // NSLog(@"VAppearances: system colors changed");
+
+    if (knownAppearances.count > 0) {
         // Assume that all known appearances may have changed
         for (NSAppearance *appearance in knownAppearances) {
             VAppearances_updateAppearance(appearance);
         }
-    } else if (callback) {
-        NSLog(@"VAppearances: system colors changed (no known appearances)");
-        NSAppearance *appearance = [NSAppearance appearanceNamed:NSAppearanceNameAqua];
-        VAppearances_updateAppearance(appearance);
-    } else {
-        NSLog(@"VAppearances: system colors changed (no callback)");
     }
 }
 
@@ -405,17 +415,13 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 
     JNF_COCOA_ENTER(env);
 
-    NSAppearanceName appearanceName = nil;
-
+    NSAppearanceName appearanceName;
     if (@available(macOS 10.14, *)) {
         appearanceName = [NSApp.effectiveAppearance name];
     } else {
         appearanceName = NSAppearanceNameAqua;
     }
-
-    if (appearanceName) {
-        result = (*env)->NewStringUTF(env, [appearanceName UTF8String]);
-    }
+    result = (*env)->NewStringUTF(env, [appearanceName UTF8String]);
 
     JNF_COCOA_EXIT(env);
 
