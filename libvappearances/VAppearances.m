@@ -10,7 +10,7 @@
  * Native code support for VAppearances.
  */
 
-static int VERSION = 1;
+static int VERSION = 2;
 
 #include <stdio.h>
 #include "jni.h"
@@ -27,9 +27,31 @@ static int VERSION = 1;
 
 static NSMutableDictionary *appearances;
 static jobject callback;
+static jobject effectiveAppearanceCallback;
 static BOOL isInitialized;
 static JavaVM *vm;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+static void invokeEffectiveAppearanceCallback(jobject callback);
+
+@interface MyObserver : NSObject
+@end
+
+@implementation MyObserver
+- (void)observeValueForKeyPath:(NSString *)keyPath
+                      ofObject:(id)object
+                        change:(NSDictionary<NSKeyValueChangeKey, id> *)change
+                       context:(void *)context
+{
+    NSLog(@"VAppearances: System appearance changed");
+
+    if (effectiveAppearanceCallback != NULL) {
+        invokeEffectiveAppearanceCallback(effectiveAppearanceCallback);
+    }
+}
+@end
+
+static MyObserver *myObserver;
 
 static void ensureInitialized()
 {
@@ -298,6 +320,39 @@ static void invokeCallback(NSString *data, jobject callback)
     }
 }
 
+static void invokeEffectiveAppearanceCallback(jobject callback)
+{
+    JNIEnv *env;
+    jboolean attached = NO;
+    int status = (*vm)->GetEnv(vm, (void **) &env, JNI_VERSION_1_6);
+    if (status == JNI_EDETACHED) {
+        status = (*vm)->AttachCurrentThread(vm, (void **) &env, 0);
+        if (status == JNI_OK) {
+            attached = YES;
+        } else {
+            NSLog(@"Unable to attach thread %d", status);
+        }
+    }
+
+    if (status == JNI_OK) {
+       jclass cl = (*env)->GetObjectClass(env, callback);
+        if (!(*env)->ExceptionOccurred(env)) {
+            jmethodID m = (*env)->GetMethodID(env, cl, "run", "()V");
+            if (m != NULL) {
+                (*env)->CallVoidMethod(env, callback, m);
+            } else {
+                NSLog(@"Unable to invoke callback: run method not found");
+            }
+        }
+    } else {
+        NSLog(@"Unable to invoke callback %d", status);
+    }
+
+    if (attached) {
+        (*vm)->DetachCurrentThread(vm);
+    }
+}
+
 // This function should be called by any NSView to register its appearance after receiving the
 // viewDidChangeEffectiveAppearance message.
 void VAppearances_updateAppearance(NSAppearance *appearance)
@@ -359,10 +414,11 @@ static void systemColorsChanged()
     }
 }
 
-static void registerChangeListener(JNIEnv *env, jobject listener)
+static void registerListeners(JNIEnv *env, jobject listener, jobject effectiveAppearanceListener)
 {
     pthread_mutex_lock(&mutex);
     callback = listener;
+    effectiveAppearanceCallback = effectiveAppearanceListener;
     if (!isInitialized) {
         isInitialized = YES;
 
@@ -370,6 +426,14 @@ static void registerChangeListener(JNIEnv *env, jobject listener)
         if (status || !vm) {
             NSLog(@"Unable to get Java virtual machine: %d", status);
         } else {
+
+            if (@available(macOS 10.14, *)) {
+                myObserver = [[MyObserver alloc] init];
+                [NSApp addObserver:myObserver
+                        forKeyPath:@"effectiveAppearance"
+                           options:0
+                           context:NULL];
+            }
 
            // debug
            // showAppearanceNames();
@@ -392,14 +456,14 @@ static void registerChangeListener(JNIEnv *env, jobject listener)
 
 /*
  * Class:     org_violetlib_vappearances_VAppearances
- * Method:    registerChangeListener
- * Signature: (Ljava/lang/Runnable;)V
+ * Method:    registerListeners
+ * Signature: (Ljava/lang/Runnable;Ljava/lang/Runnable;)V
  */
-JNIEXPORT void JNICALL Java_org_violetlib_vappearances_VAppearances_registerChangeListener
-  (JNIEnv *env, jclass cl, jobject jListener)
+JNIEXPORT void JNICALL Java_org_violetlib_vappearances_VAppearances_registerListeners
+  (JNIEnv *env, jclass cl, jobject jChangeListener, jobject jEffectiveApperanceListener)
 {
     JNF_COCOA_ENTER(env);
-    registerChangeListener(env, JNFNewGlobalRef(env, jListener));
+    registerListeners(env, JNFNewGlobalRef(env, jChangeListener), JNFNewGlobalRef(env, jEffectiveApperanceListener));
     JNF_COCOA_EXIT(env);
 }
 

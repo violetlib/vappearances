@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Alan Snyder.
+ * Copyright (c) 2018-2021 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -80,6 +80,7 @@ public class VAppearances
     private static final @NotNull Map<String,VAppearance> appearancesByName = new HashMap<>();
 
     private static final @NotNull Set<ChangeListener> changeListeners = new HashSet<>();
+    private static final @NotNull Set<ChangeListener> effectiveAppearanceChangeListeners = new HashSet<>();
 
     private interface AppearanceChangedListener
     {
@@ -113,7 +114,7 @@ public class VAppearances
 
     static {
         if (NativeSupport.load()) {
-            registerChangeListener(VAppearances::appearanceChanged);
+            registerListeners(VAppearances::appearanceChanged, VAppearances::effectiveAppearanceChanged);
         }
     }
 
@@ -243,6 +244,47 @@ public class VAppearances
         }
     }
 
+    // Upcall from native code with (possibly) new data for an appearance
+    private static void effectiveAppearanceChanged()
+    {
+        SwingUtilities.invokeLater(() -> notifyEffectiveAppearanceChanged());
+    }
+
+    private static void notifyEffectiveAppearanceChanged()
+    {
+        ChangeEvent event = new ChangeEvent(VAppearances.class);
+        for (ChangeListener listener : effectiveAppearanceChangeListeners) {
+            listener.stateChanged(event);
+        }
+    }
+
+    /**
+      Register a change listener to be called when the application effective appearance is changed, for example, from
+      light to dark or vice versa. The concept of an application effective appearance was introduced in macOS 10.14.
+      <p>
+      This listener may be called when the user specified accent color or highlight color changes.
+      <p>
+      All invocations of the listener are performed on the AWT event dispatching thread.
+
+      @param listener The listener to be registered.
+    */
+
+    public static synchronized void addEffectiveAppearanceChangeListener(@NotNull ChangeListener listener)
+    {
+        effectiveAppearanceChangeListeners.add(listener);
+    }
+
+    /**
+      Unregister a previously registered change listener.
+
+      @param listener The listener to be unregistered.
+    */
+
+    public static synchronized void removeEffectiveAppearanceChangeListener(@NotNull ChangeListener listener)
+    {
+        effectiveAppearanceChangeListeners.remove(listener);
+    }
+
     /**
       Register a change listener to be called when an appearance with a new name becomes known or a previously known
       appearance is replaced with an appearance with the same name but different attributes (system color values). All
@@ -270,7 +312,7 @@ public class VAppearances
 
     private static native @Nullable String getSystemColorsData(@NotNull String appearanceName);
 
-    private static native void registerChangeListener(@Nullable AppearanceChangedListener listener);
+    private static native void registerListeners(@NotNull AppearanceChangedListener listener, @NotNull Runnable effectiveAppearanceListener);
 
     private static native @Nullable String nativeGetApplicationAppearanceName();
 }
