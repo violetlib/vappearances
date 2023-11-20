@@ -1,40 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <project
+    name="VAppearances"
     basedir="."
     default="release"
     xmlns:resolver="antlib:org.apache.maven.resolver.ant"
     xmlns:ivy="antlib:org.apache.ivy.ant"
     xmlns:antcontrib="antlib:net.sf.antcontrib"
     xmlns:if="ant:if"
-    name="VAppearances">
+    >
 
     <tstamp>
         <format property="NOW" timezone="GMT" pattern="yyyy-MM-dd'T'HH:mm:ss'Z'"/>
     </tstamp>
-
-    <!-- A Java 9 or later compiler is required -->
-
-    <exec executable="java_home" outputproperty="jdk">
-        <arg value="-F"/>
-        <arg value="-v"/>
-        <arg value="9+"/>
-    </exec>
-
-    <property name="javac" location="${jdk}/bin/javac"/>
-
-    <!-- A Java 8 boot class path is required -->
-
-    <exec executable="java_home" outputproperty="jdk8">
-        <arg value="-F"/>
-        <arg value="-v"/>
-        <arg value="1.8"/>
-    </exec>
-
-    <property name="bootclasspath" location="${jdk8}/jre/lib/rt.jar" />
-
-    <property name="RELEASE" value="0.9"/>
-    <property name="fullReleaseName" value="${RELEASE} ${NOW}"/>
 
     <property name="base" location=".."/>
     <property name="src" location="${base}/src"/>
@@ -44,24 +22,32 @@
     <property name="builddir" location="out"/>
     <property name="classesdir" location="${builddir}/classes"/>
     <property name="headersdir" location="${builddir}/headers"/>
+    <property name="jnuheadersdir" value="${jnisrc}"/>
     <property name="jnidir" location="${builddir}/jni"/>
     <property name="distdir" location="dist"/>
+    <property name="debug" value="false"/>
     <property name="libdir" location="${base}/lib"/>
+    <property name="RELEASE" value="0.9"/>
+    <property name="fullReleaseName" value="${RELEASE} ${NOW}"/>
+
     <property name="SDKroot" location="/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk" />
     <property name="cc" value="/usr/bin/cc"/>
     <property name="lipo" location="/usr/bin/lipo"/>
 
-    <!-- Note: open source JavaNativeFoundation is required to build for arm, see https://github.com/apple/openjdk -->
+    <!-- A Java 9 or later compiler is required -->
 
-    <property name="JNFdir" location="${SDKroot}/System/Library/Frameworks/JavaVM.framework/Versions/A/Frameworks"/>
+    <property environment="env"/>
+    <property if:set="env.JAVA_HOME" name="jdk" value="${env.JAVA_HOME}"/>
+    <property name="jdk" location="${java.home}"/>
+    <echo message="Using JDK: ${jdk}"/>
 
-    <property name="debug" value="false"/>
+    <property name="javac" location="${jdk}/bin/javac"/>
 
     <target name="init">
         <echo level="info" message="${fullReleaseName}"/>
     </target>
 
-    <target name="clean" description="Remove build directories">
+    <target name="clean">
         <delete includeEmptyDirs="true" failonerror="false"><fileset dir="${builddir}"/></delete>
     </target>
 
@@ -84,60 +70,54 @@
       </copy>
     </target>
 
+    <path id="libs">
+    </path>
+
+    <property name="annotationsVersion" value="20.1.0"/>
+
     <!--
-      To use the Maven resolver, the Maven resolver ant tasks uber JAR must be built from source
-      and installed in .ant/lib.
-      See https://maven.apache.org/resolver-ant-tasks/
+      To use the Maven resolver, the Maven resolver ant tasks uber JAR must installed in .ant/lib.
+      See Maven Central: maven-resolver-ant-tasks-1.2.1-uber.jar
     -->
 
-    <target name="resolve-maven">
+    <target name="resolve">
         <resolver:resolve>
           <dependencies>
-            <dependency coords="org.jetbrains:annotations:20.1.0"/>
+                <dependency coords="org.jetbrains:annotations:${annotationsVersion}:provided"/>
           </dependencies>
-          <path refid="cp" classpath="compile"/>
+          <path refid="maven.path" classpath="compile"/>
         </resolver:resolve>
     </target>
 
-    <!--
-      To use the Ivy resolver, the Ivy uber JAR must be downloaded and installed in .ant/lib.
-      See https://ant.apache.org/ivy/
-    -->
+    <path id="cp">
+        <path refid="maven.path"/>
+        <path refid="libs"/>
+    </path>
 
-    <target name="resolve-ivy">
-        <ivy:cachepath pathid="cp">
-            <dependency org="org.jetbrains" name="annotations" rev="20.1.0"/>
-        </ivy:cachepath>
-    </target>
-
-    <target name="compile8" depends="copyResources, resolve-ivy">
+    <target name="compile-Java" depends="copyResources, resolve">
       <mkdir dir="${classesdir}"/>
       <mkdir dir="${headersdir}"/>
 
-      <javac source="1.8" target="1.8"
-          bootclasspath="${bootclasspath}"
+      <javac
           classpathref="cp"
           encoding="UTF-8"
+          release="8"
           srcdir="${src}"
           destdir="${classesdir}"
+          nativeHeaderDir="${headersdir}"
           debug="${debug}"
           optimize="true"
           includeantruntime="false"
           fork="true"
           executable="${javac}"
           >
-          <compilerarg value="-h"/>
-          <compilerarg path="${headersdir}"/>
           <patternset>
             <include name="org/violetlib/vappearances/**/*.java"/>
           </patternset>
       </javac>
     </target>
 
-    <target name="compile-Java" depends="compile8">
-    </target>
-
-    <target name="compile-JNI" depends="compile8">
+    <target name="compile-JNI" depends="compile-Java">
         <mkdir dir="${jnidir}"/>
 
         <macrodef name="build-for-target">
@@ -157,6 +137,7 @@
                     <arg value="-I${jdk}/include"/>
                     <arg value="-I${jdk}/include/darwin"/>
                     <arg value="-I${headersdir}"/>
+                    <arg value="-I${jnuheadersdir}"/>
 
                     <arg value="-dynamiclib"/>
                     <arg value="-ObjC"/>
@@ -164,13 +145,10 @@
                     <arg value="-framework"/>
                     <arg value="Cocoa"/>
 
-                    <arg value="-F${JNFdir}"/>
-                    <arg value="-framework"/>
-                    <arg value="JavaNativeFoundation"/>
-
                     <arg value="-install_name"/>
                     <arg value="${jniname}.dylib"/>
 
+                    <arg value="${jnisrc}/jnu_support.m"/>
                     <arg value="${jnisrc}/VAppearances.m"/>
                 </exec>
             </sequential>
@@ -192,11 +170,8 @@
     </target>
 
     <target name="VAppearances" depends="compile-JNI,compile-Java,saveIDs">
-
         <echo level="info" message="Building VAppearances ${fullReleaseName}"/>
-
         <mkdir dir="${distdir}"/>
-
         <jar jarfile="${distdir}/VAppearances.jar" basedir="${classesdir}">
             <fileset dir="${jnidir}/"/>
         </jar>

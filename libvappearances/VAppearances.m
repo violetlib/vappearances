@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2021 Alan Snyder.
+ * Copyright (c) 2018-2023 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -12,18 +12,17 @@
 
 static int VERSION = 2;
 
-#include <stdio.h>
-#include "jni.h"
-#include "org_violetlib_vappearances_VAppearances.h"
-#include <pthread.h>
-
 #import <Cocoa/Cocoa.h>
 #import <CoreServices/CoreServices.h>
 #import <CoreFoundation/CoreFoundation.h>
-#import <JavaNativeFoundation/JavaNativeFoundation.h>
 #import <Availability.h>
 
 #import "VAppearances.h"
+#include <stdio.h>
+#include "jnix.h"
+#include "org_violetlib_vappearances_VAppearances.h"
+#include <pthread.h>
+
 
 static NSMutableDictionary *appearances;
 static jobject callback;
@@ -267,20 +266,15 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_getSystem
 
     jstring result = nil;
 
-    JNF_COCOA_ENTER(env);
+    COCOA_ENTER();
 
-    // Convert Java String to NSString
-    const jchar *appearanceNameChars = (*env)->GetStringChars(env, jAppearanceName, NULL);
-    NSString *appearanceName = [NSString stringWithCharacters:(UniChar *)appearanceNameChars length:(*env)->GetStringLength(env, jAppearanceName)];
-    (*env)->ReleaseStringChars(env, jAppearanceName, appearanceNameChars);
-
+    NSString *appearanceName = TO_NSSTRING(jAppearanceName);
     NSString *s = obtainSystemColorsForNamedAppearance(appearanceName);
     if (s != nil) {
-        // Convert NSString to Java String
-        result = (*env)->NewStringUTF(env, [s UTF8String]);
+        result = TO_JAVA_STRING(s);
     }
 
-    JNF_COCOA_EXIT(env);
+    COCOA_EXIT();
 
    return result;
 }
@@ -443,12 +437,16 @@ static void registerListeners(JNIEnv *env, jobject listener, jobject effectiveAp
 
             NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
             NSOperationQueue *mainQueue = [NSOperationQueue mainQueue];
-            [nc addObserverForName:NSSystemColorsDidChangeNotification object:nil queue:mainQueue usingBlock:^(NSNotification *note){
-                systemColorsChanged();
-            }];
-            [nc addObserverForName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification object:nil queue:mainQueue usingBlock:^(NSNotification *note){
-                systemColorsChanged();
-            }];
+            [nc addObserverForName:NSSystemColorsDidChangeNotification
+                            object:nil
+                             queue:mainQueue
+                        usingBlock:^(NSNotification *note){systemColorsChanged();}
+            ];
+            [nc addObserverForName:NSWorkspaceAccessibilityDisplayOptionsDidChangeNotification
+                            object:nil
+                             queue:mainQueue
+                        usingBlock:^(NSNotification *note){systemColorsChanged();}
+            ];
         }
     }
     pthread_mutex_unlock(&mutex);
@@ -460,11 +458,13 @@ static void registerListeners(JNIEnv *env, jobject listener, jobject effectiveAp
  * Signature: (Ljava/lang/Runnable;Ljava/lang/Runnable;)V
  */
 JNIEXPORT void JNICALL Java_org_violetlib_vappearances_VAppearances_registerListeners
-  (JNIEnv *env, jclass cl, jobject jChangeListener, jobject jEffectiveApperanceListener)
+  (JNIEnv *env, jclass cl, jobject jChangeListener, jobject jEffectiveAppearanceListener)
 {
-    JNF_COCOA_ENTER(env);
-    registerListeners(env, JNFNewGlobalRef(env, jChangeListener), JNFNewGlobalRef(env, jEffectiveApperanceListener));
-    JNF_COCOA_EXIT(env);
+    COCOA_ENTER();
+    jobject cl = (*env)->NewGlobalRef(env, jChangeListener);
+    jobject eal = (*env)->NewGlobalRef(env, jEffectiveAppearanceListener);
+    registerListeners(env, cl, eal);
+    COCOA_EXIT();
 }
 
 /*
@@ -475,9 +475,9 @@ JNIEXPORT void JNICALL Java_org_violetlib_vappearances_VAppearances_registerList
 JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApplicationAppearanceName
   (JNIEnv *env, jclass cl)
 {
-    __block jstring result = nil;
+    jstring result = NULL;
 
-    JNF_COCOA_ENTER(env);
+    COCOA_ENTER();
 
     NSAppearanceName appearanceName;
     if (@available(macOS 10.14, *)) {
@@ -485,9 +485,9 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
     } else {
         appearanceName = NSAppearanceNameAqua;
     }
-    result = (*env)->NewStringUTF(env, [appearanceName UTF8String]);
+    result = TO_JAVA_STRING(appearanceName);
 
-    JNF_COCOA_EXIT(env);
+    COCOA_EXIT();
 
     return result;
 }
