@@ -134,6 +134,8 @@
                     <arg value="-o"/>
                     <arg value="${jnidir}/${jniname}-@{name}.dylib"/>
 
+                    <arg value="-fvisibility=hidden"/>
+
                     <arg value="-I${jdk}/include"/>
                     <arg value="-I${jdk}/include/darwin"/>
                     <arg value="-I${headersdir}"/>

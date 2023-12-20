@@ -349,7 +349,7 @@ static void invokeEffectiveAppearanceCallback(jobject callback)
 
 // This function should be called by any NSView to register its appearance after receiving the
 // viewDidChangeEffectiveAppearance message.
-void VAppearances_updateAppearance(NSAppearance *appearance)
+JNIEXPORT void VAppearances_updateAppearance(NSAppearance *appearance)
 {
     appearance = [NSAppearance appearanceNamed:appearance.name];
 
