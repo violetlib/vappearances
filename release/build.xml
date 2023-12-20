@@ -22,7 +22,6 @@
     <property name="builddir" location="out"/>
     <property name="classesdir" location="${builddir}/classes"/>
     <property name="headersdir" location="${builddir}/headers"/>
-    <property name="jnuheadersdir" value="${jnisrc}"/>
     <property name="jnidir" location="${builddir}/jni"/>
     <property name="distdir" location="dist"/>
     <property name="debug" value="false"/>
@@ -139,7 +138,6 @@
                     <arg value="-I${jdk}/include"/>
                     <arg value="-I${jdk}/include/darwin"/>
                     <arg value="-I${headersdir}"/>
-                    <arg value="-I${jnuheadersdir}"/>
 
                     <arg value="-dynamiclib"/>
                     <arg value="-ObjC"/>
