@@ -138,6 +138,7 @@
                     <arg value="-I${jdk}/include"/>
                     <arg value="-I${jdk}/include/darwin"/>
                     <arg value="-I${headersdir}"/>
+                    <arg value="-I${jnisrc}"/>
 
                     <arg value="-dynamiclib"/>
                     <arg value="-ObjC"/>
