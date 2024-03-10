@@ -45,7 +45,6 @@
 extern void JNU_SUPPORT(appkitExec)(void (^block)());
 extern void JNU_SUPPORT(appkitExecLater)(void (^block)());
 extern void JNU_SUPPORT(appkitPerform)(id target, SEL selector, id arg);
-extern JNIEnv *JNU_SUPPORT(getAppkitJNIEnvironment());
 
 
 
