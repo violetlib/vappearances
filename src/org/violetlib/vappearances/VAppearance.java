@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2020 Alan Snyder.
+ * Copyright (c) 2018-2025 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -14,13 +14,12 @@ import java.util.Map;
 import org.jetbrains.annotations.*;
 
 /**
-  An object that represents a particular system appearance along with the system color values at a particular time.
-  A {@code VAppearance} object is immutable.
+  An object that represents a particular system appearance and provides access to its current system color values and
+  the appearance settings those colors are based on.
 */
 
 public interface VAppearance
 {
-
     /**
       Return the system name of the appearance. Currently, four names are possible in macOS:
       <ul>
@@ -38,11 +37,6 @@ public interface VAppearance
       </li>
       </ul>
       </ul>
-      <p>
-      Note that there can be many {@code VAppearance} objects with the same name, but at any one time, there is one
-      that represents the current state of the system as it pertains to appearance and system colors. The relevant
-      system state includes the selected system appearance, the accent color, the highlight color, and the increased
-      contrast accessibility option.
 
       @return the appearance name.
     */
@@ -67,7 +61,22 @@ public interface VAppearance
     boolean isHighContrast();
 
     /**
-      Return a non-modifiable map that provides the values of known system colors.
+      Identify a tinted system appearance. This option was introduced in macOS 26. As of macOS 26.2, the tinted
+      option and the high contrast option are mutually exclusive.
+
+      @return true if and only if the tinted option exists and is selected.
+    */
+
+    boolean isTinted();
+
+    /**
+      Return the current appearance settings that may influence the system color values.
+    */
+
+    @NotNull AppearanceSettings getSettings();
+
+    /**
+      Return a non-modifiable map that provides the current values of the system colors associated with this appearance.
     */
 
     @NotNull Map<String,Color> getColors();
