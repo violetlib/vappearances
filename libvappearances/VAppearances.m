@@ -292,17 +292,15 @@ static NSString *obtainSystemColorsForNamedAppearance(NSString *appearanceName)
     ensureInitialized();
     pthread_mutex_unlock(&mutex);
 
-    runOnMainThread(^() {
-        if (@available(macOS 11, *)) {
-            NSAppearance *appearance = getNamedAppearance(appearanceName);
-            if (appearance != nil) {
-                [appearance performAsCurrentDrawingAppearance: ^(){result = obtainSystemColorsForCurrentAppearance();}];
-            }
+    if (@available(macOS 11, *)) {
+        NSAppearance *appearance = getNamedAppearance(appearanceName);
+        if (appearance != nil) {
+            [appearance performAsCurrentDrawingAppearance: ^(){result = obtainSystemColorsForCurrentAppearance();}];
         }
-        if (result == nil) {
-            result = obtainSystemColorsForCurrentAppearance();
-        }
-    });
+    }
+    if (result == nil) {
+        result = obtainSystemColorsForCurrentAppearance();
+    }
 
     return result;
 }
@@ -376,15 +374,17 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 {
     // Obtain the system colors for the appearance specified by name.
 
-    jstring result = nil;
+    __block jstring result = nil;
 
     COCOA_ENTER();
 
-    NSString *appearanceName = TO_NSSTRING(jAppearanceName);
-    NSString *s = obtainSystemColorsForNamedAppearance(appearanceName);
-    if (s != nil) {
-        result = TO_JAVA_STRING(s);
-    }
+    runOnMainThread(^() {
+        NSString *appearanceName = TO_NSSTRING(jAppearanceName);
+        NSString *s = obtainSystemColorsForNamedAppearance(appearanceName);
+        if (s != nil) {
+            result = TO_JAVA_STRING(s);
+        }
+    });
 
     COCOA_EXIT();
 
