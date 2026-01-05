@@ -139,7 +139,7 @@ public class VAppearances
             }
             Set<ChangeListener> listenersToCall = getChangeListeners();
             if (!listenersToCall.isEmpty()) {
-                SwingUtilities.invokeLater(() -> invokeListeners(listenersToCall, result.appearance));
+                invokeListeners(listenersToCall, result.appearance);
             }
         }
         return result.appearance;
@@ -284,7 +284,7 @@ public class VAppearances
                     }
                     list.add(n);
                 }
-            } catch (NumberFormatException e) {
+            } catch (NumberFormatException ignore) {
             }
         }
         if (list.size() == 3) {
@@ -295,10 +295,12 @@ public class VAppearances
 
     private static void invokeListeners(@NotNull Collection<ChangeListener> listeners, @NotNull VAppearance appearance)
     {
-        ChangeEvent event = new AppearanceChangeEvent(appearance);
-        for (ChangeListener listener : listeners) {
-            listener.stateChanged(event);
-        }
+        SwingUtilities.invokeLater(() -> {
+            ChangeEvent event = new AppearanceChangeEvent(appearance);
+            for (ChangeListener listener : listeners) {
+                listener.stateChanged(event);
+            }
+        });
     }
 
     // Upcall from native code indicating a possible change to system settings related to system colors
@@ -308,7 +310,7 @@ public class VAppearances
             System.err.println("VAppearances: settings changed");
         }
 
-        SwingUtilities.invokeLater(VAppearances::invalidateAppearanceSettings);
+        invalidateAppearanceSettings();
     }
 
     // Upcall from native code indicating a possible change to the application effective appearance
@@ -318,15 +320,17 @@ public class VAppearances
             System.err.println("VAppearances: effective appearance changed");
         }
 
-        SwingUtilities.invokeLater(VAppearances::notifyEffectiveAppearanceChanged);
+        invalidateAppearanceSettings();
     }
 
     private static void notifyEffectiveAppearanceChanged()
     {
-        ChangeEvent event = new ChangeEvent(VAppearances.class);
-        for (ChangeListener listener : getEffectiveAppearanceChangeListeners()) {
-            listener.stateChanged(event);
-        }
+        SwingUtilities.invokeLater(() -> {
+            ChangeEvent event = new ChangeEvent(VAppearances.class);
+            for (ChangeListener listener : getEffectiveAppearanceChangeListeners()) {
+                listener.stateChanged(event);
+            }
+        });
     }
 
     /**
