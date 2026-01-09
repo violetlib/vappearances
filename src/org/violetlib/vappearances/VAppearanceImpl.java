@@ -85,4 +85,14 @@ import java.util.Map;
     {
         return VAppearances.getSystemColorsForAppearance(name);
     }
+
+    @Override
+    public @NotNull String toString()
+    {
+        String s = name;
+        if (isDark) {
+            s = s + " [Dark]";
+        }
+        return s;
+    }
 }
