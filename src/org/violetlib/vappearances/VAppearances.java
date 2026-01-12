@@ -49,7 +49,7 @@ import java.util.List;
 public class VAppearances
 {
     /**
-      A change event that identifies the appearance whose definition may have changed.
+      A change event that identifies a newly available appearance.
     */
     public static final class AppearanceChangeEvent
       extends ChangeEvent
@@ -64,7 +64,7 @@ public class VAppearances
         }
 
         /**
-          Return the appearance whose definition may have changed.
+          Return the appearance that became available.
         */
 
         public @NotNull VAppearance getAppearance()
@@ -75,10 +75,8 @@ public class VAppearances
 
     private static final @NotNull ApplicationAppearanceCache applicationAppearance = new ApplicationAppearanceCache();
     private static final @NotNull AppearancesCache appearancesByName  = new AppearancesCache();
-    private static final @NotNull Set<ChangeListener> changeListeners
-      = Collections.synchronizedSet(new HashSet<>());
-    private static final @NotNull Set<ChangeListener> effectiveAppearanceChangeListeners
-      = Collections.synchronizedSet(new HashSet<>());
+    private static final @NotNull Set<ChangeListener> changeListeners = Collections.synchronizedSet(new HashSet<>());
+    private static final @NotNull HandlerStore effectiveAppearanceHandlerStore = new HandlerStore();
 
     private VAppearances()
     {
@@ -132,6 +130,11 @@ public class VAppearances
       throws IOException
     {
         checkInitialized();
+        return internalGetAppearance(appearanceName);
+    }
+
+    private static @NotNull VAppearance internalGetAppearance(@NotNull String appearanceName)
+    {
         AppearancesCache.Result result = appearancesByName.get(appearanceName);
         if (result.isNew) {
             debug("Registered appearance " + appearanceName);
@@ -144,8 +147,8 @@ public class VAppearances
     }
 
     /**
-      Return an object representing the current effective appearance of the application
-      and providing access to its attributes.
+      Return an object representing the current effective appearance of the application and providing access to its
+      attributes.
 
       @return an object representing the associated appearance.
       @throws IOException if the appearance is not defined or not available, or if the data could not be obtained.
@@ -164,8 +167,8 @@ public class VAppearances
     }
 
     /**
-      Return the current appearance settings. Appearance settings are settings whose values may influence the
-      system colors.
+      Return the current appearance settings. Appearance settings are settings whose values may influence the system
+      colors.
     */
     public static @NotNull AppearanceSettings getAppearanceSettings()
       throws IOException
@@ -186,11 +189,10 @@ public class VAppearances
     }
 
     /**
-      Invalidate cached appearance data if the appearance settings have changed or the effective appearance
-      has changed.
+      Invalidate cached appearance data if the appearance settings have changed or the effective appearance has changed.
       <p>
-      The assumption is that system colors are dependent only upon the appearance settings. If the appearance
-      settings have not changed, then the system colors for any given appearance have not changed.
+      The assumption is that system colors are dependent only upon the appearance settings. If the appearance settings
+      have not changed, then the system colors for any given appearance have not changed.
 
       @return true if the cached data has been invalidated.
     */
@@ -208,6 +210,8 @@ public class VAppearances
             if (!currentAppearanceName.equals(applicationAppearance.getCachedAppearanceName(null))) {
                 applicationAppearance.setAppearanceName(currentAppearanceName);
                 forceUpdate = true;
+                // If the appearance is new, notify that first.
+                internalGetAppearance(currentAppearanceName);
             }
         }
 
@@ -273,7 +277,7 @@ public class VAppearances
         }
 
         try {
-            String appearanceName = (String) objects[0];
+            //String appearanceName = (String) objects[0];
             String highlightColorValue = (String) objects[1];
             int accentColorIndex = data[0];
             int tintedOption = data[1];
@@ -344,16 +348,6 @@ public class VAppearances
         return null;
     }
 
-    private static void invokeListeners(@NotNull Collection<ChangeListener> listeners, @NotNull VAppearance appearance)
-    {
-        SwingUtilities.invokeLater(() -> {
-            ChangeEvent event = new AppearanceChangeEvent(appearance);
-            for (ChangeListener listener : listeners) {
-                listener.stateChanged(event);
-            }
-        });
-    }
-
     /** Upcall from native code indicating a possible change to system settings related to system colors */
     private static void settingsChanged()
     {
@@ -380,21 +374,12 @@ public class VAppearances
         }
     }
 
-    private static void notifyEffectiveAppearanceChanged()
-    {
-        SwingUtilities.invokeLater(() -> {
-            ChangeEvent event = new ChangeEvent(VAppearances.class);
-            for (ChangeListener listener : getEffectiveAppearanceChangeListeners()) {
-                listener.stateChanged(event);
-            }
-        });
-    }
-
     /**
       Register a change listener to be called when the application effective appearance is changed, for example, from
       light to dark or vice versa. The concept of an application effective appearance was introduced in macOS 10.14.
       <p>
-      This listener may be called when the user specified accent color or highlight color changes.
+      This listener is also called when a system property changes that may affect the appearance system colors, such as
+      the user specified accent color or highlight color.
       <p>
       All invocations of the listener are performed on the AWT event dispatching thread.
 
@@ -403,7 +388,7 @@ public class VAppearances
 
     public static synchronized void addEffectiveAppearanceChangeListener(@NotNull ChangeListener listener)
     {
-        effectiveAppearanceChangeListeners.add(listener);
+        effectiveAppearanceHandlerStore.addChangeListener(listener);
     }
 
     /**
@@ -414,18 +399,49 @@ public class VAppearances
 
     public static synchronized void removeEffectiveAppearanceChangeListener(@NotNull ChangeListener listener)
     {
-        effectiveAppearanceChangeListeners.remove(listener);
+        effectiveAppearanceHandlerStore.removeChangeListener(listener);
     }
 
-    private static synchronized @NotNull Set<ChangeListener> getEffectiveAppearanceChangeListeners()
+    /**
+      Register a handler to be called when the application effective appearance is changed, for example, from light to
+      dark or vice versa. The concept of an application effective appearance was introduced in macOS 10.14.
+      <p>
+      The handler is also called when a system property changes that may affect the appearance system colors, such as
+      the user specified accent color or highlight color.
+      <p>
+      All invocations of the handler are performed on the AWT event dispatching thread.
+
+      @param r The listener to be registered.
+    */
+
+    public static synchronized void addEffectiveAppearanceChangeRunner(@NotNull Runnable r)
     {
-        return new HashSet<>(effectiveAppearanceChangeListeners);
+        effectiveAppearanceHandlerStore.addRunner(r);
+    }
+
+    /**
+      Unregister a previously registered change handler.
+
+      @param r The handler to be unregistered.
+    */
+
+    public static synchronized void removeEffectiveAppearanceChangeRunner(@NotNull Runnable r)
+    {
+        effectiveAppearanceHandlerStore.removeRunner(r);
+    }
+
+    private static void notifyEffectiveAppearanceChanged()
+    {
+        Handlers handlers = effectiveAppearanceHandlerStore.getHandlers();
+        if (handlers != null) {
+            SwingUtilities.invokeLater(handlers::invoke);
+        }
     }
 
     /**
       Register a change listener to be called when an appearance with a new name becomes known. All invocations of the
-      listener are performed on the AWT event dispatching thread. The parameter, an instance of {@link
-    AppearanceChangeEvent}, provides the object representing the appearance.
+      listener are performed on the AWT event dispatching thread. The event, an instance of {@link
+      AppearanceChangeEvent}, provides the object representing the appearance.
 
       @param listener The listener to be registered.
     */
@@ -444,6 +460,16 @@ public class VAppearances
     public static synchronized void removeChangeListener(@NotNull ChangeListener listener)
     {
         changeListeners.remove(listener);
+    }
+
+    private static void invokeListeners(@NotNull Collection<ChangeListener> listeners, @NotNull VAppearance appearance)
+    {
+        SwingUtilities.invokeLater(() -> {
+            ChangeEvent event = new AppearanceChangeEvent(appearance);
+            for (ChangeListener listener : listeners) {
+                listener.stateChanged(event);
+            }
+        });
     }
 
     private static synchronized @NotNull Set<ChangeListener> getChangeListeners()
