@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Alan Snyder.
+ * Copyright (c) 2025-2026 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -15,20 +15,20 @@ import java.awt.*;
 import java.util.Objects;
 
 /**
-  An immutable collection of system settings whose values can impact the system color values.
+  An immutable collection of system settings whose values can impact the system color values for a given
+  appearance.
 */
 
 public final class AppearanceSettings
 {
-    public static @NotNull AppearanceSettings create(@NotNull String appearanceName,
-                                                     boolean increaseContrast,
+    public static @NotNull AppearanceSettings create(boolean increaseContrast,
                                                      boolean reduceTransparency,
                                                      int tintedOption,
                                                      int accentColorIndex,
                                                      @Nullable String highlightColorName,
                                                      @Nullable Color customHighlightColor)
     {
-        return new AppearanceSettings(appearanceName, increaseContrast, reduceTransparency, tintedOption,
+        return new AppearanceSettings(increaseContrast, reduceTransparency, tintedOption,
           accentColorIndex, highlightColorName, customHighlightColor);
     }
 
@@ -46,8 +46,6 @@ public final class AppearanceSettings
     public static final int PURPLE = 5;
     public static final int PINK = 6;
 
-    private final @NotNull String appearanceName;
-    private final @NotNull String shortAppearanceName;
     private final boolean increaseContrast;
     private final boolean reduceTransparency;
     private final int tintedOption;
@@ -55,50 +53,19 @@ public final class AppearanceSettings
     private final @Nullable String highlightColorName;
     private final @Nullable Color customHighlightColor;
 
-    private AppearanceSettings(@NotNull String appearanceName,
-                               boolean increaseContrast,
+    private AppearanceSettings(boolean increaseContrast,
                                boolean reduceTransparency,
                                int tintedOption,
                                int accentColorIndex,
                                @Nullable String highlightColorName,
                                @Nullable Color customHighlightColor)
     {
-        this.appearanceName = appearanceName;
-        this.shortAppearanceName = toShortName(appearanceName);
         this.increaseContrast = increaseContrast;
         this.reduceTransparency = reduceTransparency;
         this.tintedOption = tintedOption;
         this.accentColorIndex = accentColorIndex;
         this.highlightColorName = highlightColorName;
         this.customHighlightColor = customHighlightColor;
-    }
-
-    /**
-      Return the appearance name. Supported names are "NSAppearanceNameAqua" and "NSAppearanceNameDarkAqua".
-    */
-    public @NotNull String getAppearanceName()
-    {
-        return appearanceName;
-    }
-
-    /**
-      Return the short version of the appearance name. Supported names are "Light" and "Dark".
-      If the appearance name is unsupported, it is returned as is.
-    */
-    public @NotNull String getShortAppearanceName()
-    {
-        return shortAppearanceName;
-    }
-
-    private static @NotNull String toShortName(@NotNull String name)
-    {
-        if (name.equals("NSAppearanceNameAqua")) {
-            return "Light";
-        }
-        if (name.equals("NSAppearanceNameDarkAqua")) {
-            return "Dark";
-        }
-        return name;
     }
 
     /**
@@ -171,16 +138,8 @@ public final class AppearanceSettings
         return customHighlightColor;
     }
 
-    /* package private */ @NotNull AppearanceSettings withAppearanceName(@NotNull String name)
-    {
-        return this.appearanceName.equals(name)
-          ? this
-          : new AppearanceSettings(name, increaseContrast, reduceTransparency, tintedOption, accentColorIndex,
-          highlightColorName, customHighlightColor);
-    }
-
     @Override
-    public boolean equals(Object o)
+    public boolean equals(@Nullable Object o)
     {
         if (o == null || getClass() != o.getClass()) {
             return false;
@@ -190,7 +149,6 @@ public final class AppearanceSettings
           && reduceTransparency == that.reduceTransparency
           && tintedOption == that.tintedOption
           && accentColorIndex == that.accentColorIndex
-          && appearanceName.equals(that.appearanceName)
           && Objects.equals(highlightColorName, that.highlightColorName)
           && Objects.equals(customHighlightColor, that.customHighlightColor);
     }
@@ -198,7 +156,7 @@ public final class AppearanceSettings
     @Override
     public int hashCode()
     {
-        return Objects.hash(appearanceName, increaseContrast, reduceTransparency, tintedOption,
+        return Objects.hash(increaseContrast, reduceTransparency, tintedOption,
           accentColorIndex, highlightColorName, customHighlightColor);
     }
 }

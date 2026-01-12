@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2025 Alan Snyder.
+ * Copyright (c) 2018-2026 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -73,8 +73,8 @@ public class VAppearances
         }
     }
 
-    private static final @NotNull AppearancesCache appearancesByName
-      = new AppearancesCache();
+    private static final @NotNull ApplicationAppearanceCache applicationAppearance = new ApplicationAppearanceCache();
+    private static final @NotNull AppearancesCache appearancesByName  = new AppearancesCache();
     private static final @NotNull Set<ChangeListener> changeListeners
       = Collections.synchronizedSet(new HashSet<>());
     private static final @NotNull Set<ChangeListener> effectiveAppearanceChangeListeners
@@ -115,8 +115,8 @@ public class VAppearances
         }
     }
 
-    private static final @NotNull AppearanceSettingsCache cachedAppearanceSettings = new AppearanceSettingsCache();
-    private static final @NotNull SystemColorsCache systemColorsCache = new SystemColorsCache();
+    /** Keeps the data for known appearances */
+    private static final @NotNull AppearanceDataCache appearanceDataCache = new AppearanceDataCache();
 
     private static boolean DEBUG_FLAG = true;
 
@@ -134,9 +134,7 @@ public class VAppearances
         checkInitialized();
         AppearancesCache.Result result = appearancesByName.get(appearanceName);
         if (result.isNew) {
-            if (DEBUG_FLAG) {
-                System.err.println("VAppearances: registered appearance " + appearanceName);
-            }
+            debug("Registered appearance " + appearanceName);
             Set<ChangeListener> listenersToCall = getChangeListeners();
             if (!listenersToCall.isEmpty()) {
                 invokeListeners(listenersToCall, result.appearance);
@@ -145,20 +143,11 @@ public class VAppearances
         return result.appearance;
     }
 
-    private static @NotNull Map<String,Color> readSystemColors(@NotNull String appearanceName)
-      throws IOException
-    {
-        String data = nativeGetSystemColorsData(appearanceName);
-        if (data == null) {
-            throw new IOException("Appearance " + appearanceName + " is not available");
-        }
-        return parseColorData(data);
-    }
-
     /**
-      Return the current effective appearance of the application.
+      Return an object representing the current effective appearance of the application
+      and providing access to its attributes.
 
-      @return an object containing the currently known attributes.
+      @return an object representing the associated appearance.
       @throws IOException if the appearance is not defined or not available, or if the data could not be obtained.
     */
 
@@ -167,34 +156,11 @@ public class VAppearances
     {
         checkInitialized();
 
-        String name = nativeGetApplicationAppearanceName();
+        String name = applicationAppearance.getCachedAppearanceName(VAppearances::readApplicationAppearanceName);
         if (name == null) {
-            throw new IOException("Application effective appearance is not available");
+            throw new IOException("Application effective appearance is unavailable");
         }
-
         return getAppearance(name);
-    }
-
-    /* package private */ static @NotNull Map<String,Color> getSystemColorsForAppearance(@NotNull String appearanceName)
-    {
-        Map<String,Color> colors = systemColorsCache.get(appearanceName);
-        if (colors != null) {
-            return colors;
-        }
-        try {
-            colors = readSystemColors(appearanceName);
-        } catch (IOException e) {
-            colors = new HashMap<>();
-        }
-        systemColorsCache.put(appearanceName, colors);
-        return colors;
-    }
-
-    private static void invalidateAppearanceSettings()
-    {
-        cachedAppearanceSettings.invalidate();
-        systemColorsCache.clear();
-        notifyEffectiveAppearanceChanged();
     }
 
     /**
@@ -205,21 +171,105 @@ public class VAppearances
       throws IOException
     {
         checkInitialized();
-        try {
-            return cachedAppearanceSettings.get(VAppearances::readAppearanceSettings);
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e.getMessage());
+
+        AppearanceSettings settings = appearanceDataCache.getCachedSettings(VAppearances::readAppearanceSettings);
+        if (settings == null) {
+            throw new IOException("Appearance settings are unavailable");
         }
+        return settings;
     }
 
-    private static @NotNull AppearanceSettings readAppearanceSettings()
-      throws UnsupportedOperationException
+    /* package private */ static @Nullable Map<String,Color> getSystemColorsForAppearance(@NotNull String appearanceName)
+    {
+        AppearanceData data = getAppearanceData(appearanceName);
+        return data != null ? data.systemColors : null;
+    }
+
+    /**
+      Invalidate cached appearance data if the appearance settings have changed or the effective appearance
+      has changed.
+      <p>
+      The assumption is that system colors are dependent only upon the appearance settings. If the appearance
+      settings have not changed, then the system colors for any given appearance have not changed.
+
+      @return true if the cached data has been invalidated.
+    */
+
+    private static boolean invalidateAppearanceDataIfNeeded(boolean checkAppearanceName)
+    {
+        boolean forceUpdate = false;
+
+        String currentAppearanceName = null;
+        if (checkAppearanceName) {
+            currentAppearanceName = readApplicationAppearanceName();
+            if (currentAppearanceName == null) {
+                return false;
+            }
+            if (!currentAppearanceName.equals(applicationAppearance.getCachedAppearanceName(null))) {
+                applicationAppearance.setAppearanceName(currentAppearanceName);
+                forceUpdate = true;
+            }
+        }
+
+        AppearanceSettings settings = readAppearanceSettings();
+        if (settings == null) {
+            return false;
+        }
+        if (forceUpdate || !Objects.equals(settings, appearanceDataCache.getCachedSettings(null))) {
+            if (currentAppearanceName == null) {
+                currentAppearanceName = readApplicationAppearanceName();
+                if (currentAppearanceName == null) {
+                    return false;
+                }
+            }
+            AppearanceData data = readAppearanceData(currentAppearanceName);
+            if (data != null) {
+                appearanceDataCache.install(currentAppearanceName, settings, data);
+                return true;
+            }
+
+        }
+        return false;
+    }
+
+    private static @Nullable String readApplicationAppearanceName()
+    {
+        String name = nativeGetApplicationAppearanceName();
+        if (name == null) {
+            error("Unable to read application appearance name");
+        }
+        return name;
+    }
+
+    private static @Nullable AppearanceData getAppearanceData(@NotNull String appearanceName)
+    {
+        return appearanceDataCache.get(appearanceName, VAppearances::readAppearanceData);
+    }
+
+    private static @Nullable AppearanceData readAppearanceData(@NotNull String appearanceName)
+    {
+        Map<String,Color> systemColors = readSystemColors(appearanceName);
+        return systemColors != null ? AppearanceData.of(systemColors) : null;
+    }
+
+    private static @Nullable Map<String,Color> readSystemColors(@NotNull String appearanceName)
+    {
+        String data = nativeGetSystemColorsData(appearanceName);
+        if (data == null) {
+            error("Appearance " + appearanceName + " is not available");
+            return null;
+        }
+        return parseColorData(data);
+    }
+
+    private static @Nullable AppearanceSettings readAppearanceSettings()
     {
         int[] data = new int[4];
         Object[] objects = new Object[2];
         int rc = nativeGetAppearanceSettings(data, objects);
         if (rc != 0) {
-            throw new UnsupportedOperationException("Unable to get appearance settings");
+            error("Unable to get appearance settings");
+            return null;
         }
 
         try {
@@ -242,7 +292,7 @@ public class VAppearances
                 }
             }
 
-            return AppearanceSettings.create(appearanceName,
+            return AppearanceSettings.create(
               increaseContrastValue != 0,
               reduceTransparencyValue != 0,
               tintedOption,
@@ -252,7 +302,8 @@ public class VAppearances
             );
 
         } catch (ClassCastException e) {
-            throw new UnsupportedOperationException("Unexpected appearance setting object");
+            error("Unexpected appearance setting object");
+            return null;
         }
     }
 
@@ -303,24 +354,30 @@ public class VAppearances
         });
     }
 
-    // Upcall from native code indicating a possible change to system settings related to system colors
+    /** Upcall from native code indicating a possible change to system settings related to system colors */
     private static void settingsChanged()
     {
-        if (DEBUG_FLAG) {
-            System.err.println("VAppearances: settings changed");
-        }
+        // This upcall may be redundant, although I'm not sure if that is necessarily the case on older releases.
 
-        invalidateAppearanceSettings();
+        debug("Settings changed");
+
+        if (invalidateAppearanceDataIfNeeded(false)) {
+            notifyEffectiveAppearanceChanged();
+        }
     }
 
-    // Upcall from native code indicating a possible change to the application effective appearance
+    /** Upcall from native code indicating a possible change to the application effective appearance. */
     private static void effectiveAppearanceChanged()
     {
-        if (DEBUG_FLAG) {
-            System.err.println("VAppearances: effective appearance changed");
-        }
+        // This upcall is made when the application appearance has changed. It appears that this upcall is also made in
+        // response to a system setting that affects appearances (in particular, the system colors associated with
+        // appearances). I'm not sure if that has always been the case.
 
-        invalidateAppearanceSettings();
+        debug("Effective appearance changed");
+
+        if (invalidateAppearanceDataIfNeeded(true)) {
+            notifyEffectiveAppearanceChanged();
+        }
     }
 
     private static void notifyEffectiveAppearanceChanged()
@@ -441,7 +498,7 @@ public class VAppearances
                     f = 1;
                 }
                 return f;
-            } catch (NumberFormatException ex) {
+            } catch (NumberFormatException ignore) {
             }
         }
         return null;
@@ -459,6 +516,23 @@ public class VAppearances
         if (!isInitialized) {
             throw new IOException("Unable to load VAppearances native library");
         }
+    }
+
+    private static void debug(@NotNull String msg)
+    {
+        if (DEBUG_FLAG) {
+            message(msg);
+        }
+    }
+
+    private static void error(@NotNull String msg)
+    {
+        message(msg);
+    }
+
+    private static void message(@NotNull String msg)
+    {
+        System.err.println("VAppearances: " + msg);
     }
 
     private static native int nativeGetAppearanceSettings(int @NotNull [] intData, Object @NotNull [] stringData);
