@@ -351,13 +351,16 @@ public class VAppearances
     /** Upcall from native code indicating a possible change to system settings related to system colors */
     private static void settingsChanged()
     {
-        // This upcall may be redundant, although I'm not sure if that is necessarily the case on older releases.
+        // It appears that this notification precedes the update to system colors, so updating in response might
+        // capture stale color data.
 
-        debug("Settings changed");
-
-        if (invalidateAppearanceDataIfNeeded(false)) {
-            notifyEffectiveAppearanceChanged();
-        }
+//        SwingUtilities.invokeLater(() -> {
+//            debug("Settings changed");
+//              if (invalidateAppearanceDataIfNeeded(false)) {
+//                  notifyEffectiveAppearanceChanged();
+//              }
+//          }
+//        );
     }
 
     /** Upcall from native code indicating a possible change to the application effective appearance. */
@@ -367,11 +370,12 @@ public class VAppearances
         // response to a system setting that affects appearances (in particular, the system colors associated with
         // appearances). I'm not sure if that has always been the case.
 
-        debug("Effective appearance changed");
-
-        if (invalidateAppearanceDataIfNeeded(true)) {
-            notifyEffectiveAppearanceChanged();
-        }
+        SwingUtilities.invokeLater(() -> {
+            debug("Effective appearance changed");
+            if (invalidateAppearanceDataIfNeeded(true)) {
+                notifyEffectiveAppearanceChanged();
+            }
+        });
     }
 
     /**
@@ -441,7 +445,7 @@ public class VAppearances
     /**
       Register a change listener to be called when an appearance with a new name becomes known. All invocations of the
       listener are performed on the AWT event dispatching thread. The event, an instance of {@link
-      AppearanceChangeEvent}, provides the object representing the appearance.
+    AppearanceChangeEvent}, provides the object representing the appearance.
 
       @param listener The listener to be registered.
     */
