@@ -159,11 +159,31 @@ public class VAppearances
     {
         checkInitialized();
 
-        String name = applicationAppearance.getCachedAppearanceName(VAppearances::readApplicationAppearanceName);
+        String name = applicationAppearance.getCachedAppearanceName(VAppearances::readApplicationEffectiveAppearanceName);
         if (name == null) {
             throw new IOException("Application effective appearance is unavailable");
         }
         return getAppearance(name);
+    }
+
+    /**
+      Set the application appearance. If not null, the application appearance supersedes the system appearance in
+      determining the application effective appearance.
+
+      @param appearanceName The name of the appearance, or null to cause the application to inherit its appearance from
+      the system appearance.
+      @throws IOException if the appearance is not defined.
+    */
+    public static void setApplicationAppearance(@Nullable String appearanceName)
+      throws IOException
+    {
+        checkInitialized();
+
+        // The only failure mode is an unrecognized appearance
+        int rc = nativeSetApplicationAppearance(appearanceName);
+        if (rc != 0) {
+            throw new IOException("Unrecognized appearance: " + appearanceName);
+        }
     }
 
     /**
@@ -203,7 +223,7 @@ public class VAppearances
 
         String currentAppearanceName = null;
         if (checkAppearanceName) {
-            currentAppearanceName = readApplicationAppearanceName();
+            currentAppearanceName = readApplicationEffectiveAppearanceName();
             if (currentAppearanceName == null) {
                 return false;
             }
@@ -221,7 +241,7 @@ public class VAppearances
         }
         if (forceUpdate || !Objects.equals(settings, appearanceDataCache.getCachedSettings(null))) {
             if (currentAppearanceName == null) {
-                currentAppearanceName = readApplicationAppearanceName();
+                currentAppearanceName = readApplicationEffectiveAppearanceName();
                 if (currentAppearanceName == null) {
                     return false;
                 }
@@ -236,11 +256,11 @@ public class VAppearances
         return false;
     }
 
-    private static @Nullable String readApplicationAppearanceName()
+    private static @Nullable String readApplicationEffectiveAppearanceName()
     {
-        String name = nativeGetApplicationAppearanceName();
+        String name = nativeGetApplicationEffectiveAppearanceName();
         if (name == null) {
-            error("Unable to read application appearance name");
+            error("Unable to read application effective appearance name");
         }
         return name;
     }
@@ -573,6 +593,8 @@ public class VAppearances
                                                        @NotNull Runnable effectiveAppearanceListener);
 
     private static native @Nullable String nativeGetApplicationAppearanceName();
+    private static native @Nullable String nativeGetApplicationEffectiveAppearanceName();
+    private static native int nativeSetApplicationAppearance(@Nullable String appearanceName);
 
     private static native void nativeSetDebugFlag(boolean b);
 }

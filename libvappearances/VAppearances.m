@@ -44,7 +44,7 @@ static BOOL DEBUG_FLAG;
                        context:(void *)context
 {
     if (DEBUG_FLAG) {
-        NSLog(@"VAppearances [native]: effective appearance changed");
+        NSLog(@"VAppearances [native]: %@ changed", keyPath);
     }
 
     if (effectiveAppearanceCallback != NULL) {
@@ -495,6 +495,10 @@ static void registerListeners(JNIEnv *env, jobject settingsListener, jobject eff
                         forKeyPath:@"effectiveAppearance"
                            options:0
                            context:NULL];
+                [NSApp addObserver:myObserver
+                        forKeyPath:@"appearance"
+                           options:0
+                           context:NULL];
             }
 
            // debug
@@ -539,6 +543,67 @@ JNIEXPORT void JNICALL Java_org_violetlib_vappearances_VAppearances_nativeRegist
  * Signature: ()Ljava/lang/String;
  */
 JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApplicationAppearanceName
+  (JNIEnv *env, jclass cl)
+{
+    jstring result = NULL;
+
+    COCOA_ENTER();
+
+    NSAppearanceName appearanceName;
+    if (@available(macOS 10.14, *)) {
+        appearanceName = [NSApp.appearance name];
+    } else {
+        appearanceName = NSAppearanceNameAqua;
+    }
+    result = TO_JAVA_STRING(appearanceName);
+
+    COCOA_EXIT();
+
+    return result;
+}
+
+/*
+ * Class:     org_violetlib_vappearances_VAppearances
+ * Method:    nativeSetApplicationAppearance
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_org_violetlib_vappearances_VAppearances_nativeSetApplicationAppearance
+  (JNIEnv *env, jclass cl, jstring jAppearanceName)
+{
+    jint result = -1;
+
+    COCOA_ENTER();
+
+    NSAppearance *appearance = nil;
+    if (jAppearanceName) {
+        NSString *appearanceName = TO_NSSTRING(jAppearanceName);
+        NSAppearance *app = [NSAppearance appearanceNamed: appearanceName];
+        if ([appearanceName isEqualToString: app.name]) {
+            // If the appearance name is not recognized, some other appearance is returned.
+            appearance = app;
+            result = 0;
+        }
+    } else {
+        result = 0;
+    }
+
+    if (result == 0) {
+        runOnMainThread(^() {
+            NSApp.appearance = appearance;
+        });
+    }
+
+    COCOA_EXIT();
+
+    return result;
+}
+
+/*
+ * Class:     org_violetlib_vappearances_VAppearances
+ * Method:    nativeGetApplicationEffectiveAppearanceName
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApplicationEffectiveAppearanceName
   (JNIEnv *env, jclass cl)
 {
     jstring result = NULL;
