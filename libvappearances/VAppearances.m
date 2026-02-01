@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2025 Alan Snyder.
+ * Copyright (c) 2018-2026 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -374,17 +374,19 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 {
     // Obtain the system colors for the appearance specified by name.
 
-    __block jstring result = nil;
+    jstring result = nil;
+    __block NSString *data;
 
     COCOA_ENTER();
 
+    __block NSString *appearanceName = TO_NSSTRING(jAppearanceName);
     runOnMainThread(^() {
-        NSString *appearanceName = TO_NSSTRING(jAppearanceName);
-        NSString *s = obtainSystemColorsForNamedAppearance(appearanceName);
-        if (s != nil) {
-            result = TO_JAVA_STRING(s);
-        }
+        data = [obtainSystemColorsForNamedAppearance(appearanceName) retain];
     });
+
+    if (data != nil) {
+        result = TO_JAVA_STRING(data);
+    }
 
     COCOA_EXIT();
 
