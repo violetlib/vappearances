@@ -159,4 +159,44 @@ public final class AppearanceSettings
         return Objects.hash(increaseContrast, reduceTransparency, tintedOption,
           accentColorIndex, highlightColorName, customHighlightColor);
     }
+
+    @Override
+    public @NotNull String toString()
+    {
+        StringBuilder sb = new StringBuilder();
+        if (increaseContrast) {
+            sb.append(" IncreaseContrast");
+        }
+        if (reduceTransparency) {
+            sb.append(" ReduceTransparency");
+        }
+        sb.append(" Tinted=");
+        sb.append(tintedOption);
+        sb.append(" Accent Color=");
+        sb.append(getAccentColorOptionName());
+        String highlightColorName = getHighlightColorName();
+        if (highlightColorName != null) {
+            sb.append(" Highlight Color=");
+            sb.append(highlightColorName);
+        }
+        Color highlightColor = getCustomHighlightColor();
+        if (highlightColor != null) {
+            sb.append(" Highlight Color=");
+            sb.append(toString(highlightColor));
+        }
+        return sb.toString().trim();
+    }
+
+    private static @NotNull String toString(@NotNull Color c)
+    {
+        StringBuilder sb = new StringBuilder();
+        sb.append(c.getRed());
+        sb.append(" ");
+        sb.append(c.getGreen());
+        sb.append(" ");
+        sb.append(c.getBlue());
+        sb.append(" ");
+        sb.append(c.getAlpha());
+        return sb.toString();
+    }
 }
