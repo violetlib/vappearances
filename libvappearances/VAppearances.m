@@ -317,12 +317,14 @@ JNIEXPORT jint JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApp
     int *data = (*env)->GetIntArrayElements(env, jints, NULL);
 
     if (objectCount > 0) {
-        NSAppearanceName appearanceName;
-        if (@available(macOS 10.14, *)) {
-            appearanceName = [NSApp.effectiveAppearance name];
-        } else {
-            appearanceName = NSAppearanceNameAqua;
-        }
+        __block NSAppearanceName appearanceName;
+        runOnMainThread(^() {
+            if (@available(macOS 10.14, *)) {
+                appearanceName = [NSApp.effectiveAppearance name];
+            } else {
+                appearanceName = NSAppearanceNameAqua;
+            }
+        });
         (*env)->SetObjectArrayElement(env, jobjects, 0, TO_JAVA_STRING(appearanceName));
     }
 
