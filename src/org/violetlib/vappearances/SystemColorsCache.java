@@ -17,7 +17,7 @@ import java.util.Map;
 
 /* package private */ final class SystemColorsCache
 {
-    private static final @NotNull Map<String,Map<String,Color>> cache = new HashMap<>();
+    private final @NotNull Map<String,Map<String,Color>> cache = new HashMap<>();
 
     public synchronized void clear()
     {
