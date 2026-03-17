@@ -108,6 +108,7 @@ import java.util.StringTokenizer;
         try {
             try {
                 File f = File.createTempFile(prefix, suffix).getAbsoluteFile();
+                f.deleteOnExit();
                 try (FileOutputStream fs = new FileOutputStream(f)) {
                     internalInitializeFile(s, fs);
                 }
