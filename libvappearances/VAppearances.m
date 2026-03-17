@@ -334,9 +334,9 @@ JNIEXPORT jint JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApp
     if (data != NULL) {
 
         if (intCount > 0) {
-            NSInteger acv = [NSUserDefaults.standardUserDefaults integerForKey:@"AppleAccentColor"];
+            id acv = [NSUserDefaults.standardUserDefaults objectForKey:@"AppleAccentColor"];
             // map null (multicolor) to -2
-            data[0] = acv != NULL ? acv : -2;
+            data[0] = (acv != nil) ? [acv integerValue] : -2;
         }
 
         if (intCount > 1) {
