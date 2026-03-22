@@ -188,7 +188,7 @@ static NSString *obtainSystemColorsForCurrentAppearance()
         [stream appendFormat: @"#Appearance: %@\n", appearanceName];
     }
     [stream appendFormat: @"#Highlight color: %@\n", hcs];
-    [stream appendFormat: @"#Accent color: %ld\n", acv];
+    [stream appendFormat: @"#Accent color: %@\n", acv];
     [stream appendFormat: @"#Tinted: %ld\n", tintedOption];
     [stream appendFormat: @"#Increase contrast: %ld\n", increaseContrastOption];
     [stream appendFormat: @"#Reduce transparency: %ld\n", reduceTransparencyOption];
