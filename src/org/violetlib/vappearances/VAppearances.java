@@ -278,10 +278,7 @@ public class VAppearances
             try {
                 float f = Float.parseFloat(token);
                 if (f >= 0 && f <= 1) {
-                    int n = Math.round(f * 256);
-                    if (n == 256) {
-                        n = 255;
-                    }
+                    int n = Math.round(f * 255);
                     list.add(n);
                 }
             } catch (NumberFormatException ignore) {
