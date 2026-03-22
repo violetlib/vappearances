@@ -230,9 +230,10 @@ public class VAppearances
             int increaseContrastValue = data[2];
             int reduceTransparencyValue = data[3];
 
-            String highlightColorName = extractHighlightColorName(highlightColorValue);
+            String highlightColorName
+              = highlightColorValue != null ? extractHighlightColorName(highlightColorValue) : null;
             Color customHighlightColor = null;
-            if (highlightColorName == null) {
+            if (highlightColorName == null && highlightColorValue != null) {
                 Color c = extractHighlightColor(highlightColorValue);
                 if (c == null) {
                     // an unexpected error
