@@ -15,7 +15,7 @@ import java.util.Map;
 
 /* package private */ final class AppearancesCache
 {
-    private static final @NotNull Map<String,VAppearance> cache = new HashMap<>();
+    private final @NotNull Map<String,VAppearance> cache = new HashMap<>();
 
     public final static class Result
     {
