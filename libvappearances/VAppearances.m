@@ -153,13 +153,40 @@ static void registerDefaultColor(NSMutableString *stream, NSString *name, CGFloa
     [stream appendFormat: @"%@: %.2f %.2f %.2f %.2f\n", name, red, green, blue, alpha];
 }
 
-static NSAppearance *getCurrentAppearance()
+static NSAppearance *getCurrentAppearanceMainThread()
 {
     if (@available(macOS 11, *)) {
         return NSAppearance.currentDrawingAppearance;
     } else {
         return NSAppearance.currentAppearance;
     }
+}
+
+static NSAppearance *getCurrentAppearance()
+{
+    __block NSAppearance *result;
+    runOnMainThread(^() {
+        result = [getCurrentAppearanceMainThread() retain];
+    });
+    return [result autorelease];
+}
+
+static NSString *getEffectiveAppearanceNameMainThread()
+{
+    if (@available(macOS 10.14, *)) {
+        return [NSApp.effectiveAppearance name];
+    } else {
+        return NSAppearanceNameAqua;
+    }
+}
+
+static NSString *getEffectiveAppearanceName()
+{
+    __block NSString *result;
+    runOnMainThread(^() {
+        result = [getEffectiveAppearanceNameMainThread() retain];
+    });
+    return [result autorelease];
 }
 
 static NSString *getAppearanceName(NSAppearance *appearance)
@@ -653,12 +680,7 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 
     COCOA_ENTER();
 
-    NSAppearanceName appearanceName;
-    if (@available(macOS 10.14, *)) {
-        appearanceName = [NSApp.effectiveAppearance name];
-    } else {
-        appearanceName = NSAppearanceNameAqua;
-    }
+    NSAppearanceName appearanceName = getEffectiveAppearanceName();
     result = TO_JAVA_STRING(appearanceName);
 
     COCOA_EXIT();
