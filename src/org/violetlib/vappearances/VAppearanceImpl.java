@@ -12,7 +12,7 @@ import org.jetbrains.annotations.NotNull;
 
 import java.awt.*;
 import java.io.IOException;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -85,7 +85,7 @@ import java.util.Map;
     public @NotNull Map<String,Color> getColors()
     {
         Map<String,Color> colors = VAppearances.getSystemColorsForAppearance(name);
-        return colors != null ? colors : new HashMap<>();
+        return colors != null ? colors : Collections.emptyMap();
     }
 
     @Override
