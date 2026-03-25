@@ -105,16 +105,16 @@ public class VAppearances
     // public final static @NotNull String highContrastVibrantLightAppearance = "NSAppearanceNameAccessibilityHighContrastVibrantLight";
     // public final static @NotNull String highContrastVibrantDarkAppearance = "NSAppearanceNameAccessibilityHighContrastVibrantDark";
 
-    private static boolean isInitialized;
-    private static boolean isLoaded;
-    private static boolean isEffectiveAppearanceSupported;
+    private static volatile boolean isInitialized;
+    private static volatile boolean isLoaded;
+    private static volatile boolean isEffectiveAppearanceSupported;
 
     /** Keeps the data for known appearances */
     private static final @NotNull AppearanceDataCache appearanceDataCache = new AppearanceDataCache();
 
-    private static boolean DEBUG_FLAG = false;
+    private static volatile boolean DEBUG_FLAG = false;
 
-    private static void initialize()
+    private static synchronized void initialize()
     {
         if (!isInitialized) {
             isInitialized = true;
