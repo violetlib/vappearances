@@ -76,7 +76,7 @@ public class VAppearances
 
     private static final @NotNull ApplicationAppearanceCache applicationAppearance = new ApplicationAppearanceCache();
     private static final @NotNull AppearancesCache appearancesByName  = new AppearancesCache();
-    private static final @NotNull Set<ChangeListener> changeListeners = Collections.synchronizedSet(new HashSet<>());
+    private static final @NotNull Set<ChangeListener> changeListeners = new HashSet<>();
     private static final @NotNull HandlerStore effectiveAppearanceHandlerStore = new HandlerStore();
 
     private VAppearances()
