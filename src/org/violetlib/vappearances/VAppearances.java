@@ -496,7 +496,7 @@ public class VAppearances
     {
         Handlers handlers = effectiveAppearanceHandlerStore.getHandlers();
         if (handlers != null) {
-            SwingUtilities.invokeLater(handlers::invoke);
+            handlers.invoke();
         }
     }
 
