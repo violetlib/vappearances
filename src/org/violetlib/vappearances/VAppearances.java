@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2025 Alan Snyder.
+ * Copyright (c) 2018-2026 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -12,6 +12,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
+import javax.swing.Timer;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import java.awt.*;
@@ -49,7 +50,7 @@ import java.util.List;
 public class VAppearances
 {
     /**
-      A change event that identifies the appearance whose definition may have changed.
+      A change event that identifies a newly available appearance.
     */
     public static final class AppearanceChangeEvent
       extends ChangeEvent
@@ -64,7 +65,7 @@ public class VAppearances
         }
 
         /**
-          Return the appearance whose definition may have changed.
+          Return the appearance that became available.
         */
 
         public @NotNull VAppearance getAppearance()
@@ -73,12 +74,10 @@ public class VAppearances
         }
     }
 
-    private static final @NotNull AppearancesCache appearancesByName
-      = new AppearancesCache();
-    private static final @NotNull Set<ChangeListener> changeListeners
-      = Collections.synchronizedSet(new HashSet<>());
-    private static final @NotNull Set<ChangeListener> effectiveAppearanceChangeListeners
-      = Collections.synchronizedSet(new HashSet<>());
+    private static final @NotNull ApplicationAppearanceCache applicationAppearance = new ApplicationAppearanceCache();
+    private static final @NotNull AppearancesCache appearancesByName  = new AppearancesCache();
+    private static final @NotNull Set<ChangeListener> changeListeners = Collections.synchronizedSet(new HashSet<>());
+    private static final @NotNull HandlerStore effectiveAppearanceHandlerStore = new HandlerStore();
 
     private VAppearances()
     {
@@ -107,18 +106,40 @@ public class VAppearances
     // public final static @NotNull String highContrastVibrantDarkAppearance = "NSAppearanceNameAccessibilityHighContrastVibrantDark";
 
     private static boolean isInitialized;
+    private static boolean isLoaded;
+    private static boolean isEffectiveAppearanceSupported;
 
-    static {
-        if (NativeSupport.load()) {
-            nativeRegisterListeners(VAppearances::settingsChanged, VAppearances::effectiveAppearanceChanged);
+    /** Keeps the data for known appearances */
+    private static final @NotNull AppearanceDataCache appearanceDataCache = new AppearanceDataCache();
+
+    private static boolean DEBUG_FLAG = false;
+
+    private static void initialize()
+    {
+        if (!isInitialized) {
             isInitialized = true;
+            if (NativeSupport.load()) {
+                isLoaded = true;
+                nativeSetDebugFlag(DEBUG_FLAG);
+                nativeRegisterListeners(VAppearances::settingsChanged, VAppearances::effectiveAppearanceChanged);
+                isEffectiveAppearanceSupported = determineEffectiveAppearanceSupport();
+            }
         }
     }
 
-    private static final @NotNull AppearanceSettingsCache cachedAppearanceSettings = new AppearanceSettingsCache();
-    private static final @NotNull SystemColorsCache systemColorsCache = new SystemColorsCache();
-
-    private static boolean DEBUG_FLAG = true;
+    private static boolean determineEffectiveAppearanceSupport()
+    {
+        String versionString = System.getProperty("os.version");
+        if (versionString.startsWith("10.")) {
+            String s = versionString.substring(3);
+            if (s.startsWith("10") || s.startsWith("11") || s.startsWith("12") || s.startsWith("13")) {
+                debug("Effective appearance is not supported in " + versionString);
+                return false;
+            }
+        }
+        debug("Effective appearance is supported in " + versionString);
+        return true;
+    }
 
     /**
       Return an object representing the specified appearance.
@@ -132,11 +153,14 @@ public class VAppearances
       throws IOException
     {
         checkInitialized();
-        AppearancesCache.Result result = appearancesByName.get(appearanceName);
+        return internalGetAppearance(appearanceName);
+    }
+
+    private static @NotNull VAppearance internalGetAppearance(@NotNull String appearanceName)
+    {
+        AppearancesCache.Result result = appearancesByName.get(appearanceName, isEffectiveAppearanceSupported);
         if (result.isNew) {
-            if (DEBUG_FLAG) {
-                System.err.println("VAppearances: registered appearance " + appearanceName);
-            }
+            debug("Registered appearance " + appearanceName);
             Set<ChangeListener> listenersToCall = getChangeListeners();
             if (!listenersToCall.isEmpty()) {
                 invokeListeners(listenersToCall, result.appearance);
@@ -145,20 +169,11 @@ public class VAppearances
         return result.appearance;
     }
 
-    private static @NotNull Map<String,Color> readSystemColors(@NotNull String appearanceName)
-      throws IOException
-    {
-        String data = nativeGetSystemColorsData(appearanceName);
-        if (data == null) {
-            throw new IOException("Appearance " + appearanceName + " is not available");
-        }
-        return parseColorData(data);
-    }
-
     /**
-      Return the current effective appearance of the application.
+      Return an object representing the current effective appearance of the application and providing access to its
+      attributes.
 
-      @return an object containing the currently known attributes.
+      @return an object representing the associated appearance.
       @throws IOException if the appearance is not defined or not available, or if the data could not be obtained.
     */
 
@@ -166,84 +181,176 @@ public class VAppearances
       throws IOException
     {
         checkInitialized();
-
-        String name = nativeGetApplicationAppearanceName();
+        String name = applicationAppearance.getCachedAppearanceName(VAppearances::readApplicationEffectiveAppearanceName);
         if (name == null) {
-            throw new IOException("Application effective appearance is not available");
+            throw new IOException("Application effective appearance is unavailable");
         }
-
         return getAppearance(name);
     }
 
-    /* package private */ static @NotNull Map<String,Color> getSystemColorsForAppearance(@NotNull String appearanceName)
-    {
-        Map<String,Color> colors = systemColorsCache.get(appearanceName);
-        if (colors != null) {
-            return colors;
-        }
-        try {
-            colors = readSystemColors(appearanceName);
-        } catch (IOException e) {
-            colors = new HashMap<>();
-        }
-        systemColorsCache.put(appearanceName, colors);
-        return colors;
-    }
+    /**
+      Set the application appearance. If not null, the application appearance supersedes the system appearance in
+      determining the application effective appearance.
 
-    private static void invalidateAppearanceSettings()
+      @param appearanceName The name of the appearance, or null to cause the application to inherit its appearance from
+      the system appearance.
+      @throws IOException if the appearance is not defined.
+    */
+    public static void setApplicationAppearance(@Nullable String appearanceName)
+      throws IOException
     {
-        cachedAppearanceSettings.invalidate();
-        systemColorsCache.clear();
-        notifyEffectiveAppearanceChanged();
+        checkInitialized();
+        if (isEffectiveAppearanceSupported) {
+            // The only failure mode is an unrecognized appearance
+            int rc = nativeSetApplicationAppearance(appearanceName);
+            if (rc != 0) {
+                throw new IOException("Unrecognized appearance: " + appearanceName);
+            }
+        }
     }
 
     /**
-      Return the current appearance settings. Appearance settings are settings whose values may influence the
-      system colors.
+      Return the current appearance settings. Appearance settings are settings whose values may influence the system
+      colors.
     */
     public static @NotNull AppearanceSettings getAppearanceSettings()
       throws IOException
     {
         checkInitialized();
-        try {
-            return cachedAppearanceSettings.get(VAppearances::readAppearanceSettings);
-        } catch (UnsupportedOperationException e) {
-            throw new IOException(e.getMessage());
+        AppearanceSettings settings = appearanceDataCache.getCachedSettings(VAppearances::readAppearanceSettings);
+        if (settings == null) {
+            throw new IOException("Appearance settings are unavailable");
         }
+        return settings;
     }
 
-    private static @NotNull AppearanceSettings readAppearanceSettings()
-      throws UnsupportedOperationException
+    /* package private */ static @Nullable Map<String,Color> getSystemColorsForAppearance(@NotNull String appearanceName)
+    {
+        AppearanceData data = getAppearanceData(appearanceName);
+        return data != null ? data.systemColors : null;
+    }
+
+    /**
+      Invalidate cached appearance data if the appearance settings have changed or the effective appearance has changed.
+      <p>
+      The assumption is that system colors are dependent only upon the appearance settings. If the appearance settings
+      have not changed, then the system colors for any given appearance have not changed.
+
+      @return true if the cached data has been invalidated.
+    */
+
+    private static boolean invalidateAppearanceDataIfNeeded(boolean checkAppearanceName)
+    {
+        boolean forceUpdate = false;
+
+        String currentAppearanceName = null;
+        if (checkAppearanceName) {
+            currentAppearanceName = readApplicationEffectiveAppearanceName();
+            if (currentAppearanceName == null) {
+                debug("Unable to get effective appearance");
+                return false;
+            }
+            if (!currentAppearanceName.equals(applicationAppearance.getCachedAppearanceName(null))) {
+                applicationAppearance.setAppearanceName(currentAppearanceName);
+                forceUpdate = true;
+                // If the appearance is new, notify that first.
+                internalGetAppearance(currentAppearanceName);
+            }
+        }
+
+        AppearanceSettings settings = readAppearanceSettings();
+        if (settings == null) {
+            debug("Unable to read appearance settings");
+            return false;
+        }
+        debug("Appearance settings read: " + settings);
+
+        if (forceUpdate || !isEffectiveAppearanceSupported || !Objects.equals(settings, appearanceDataCache.getCachedSettings(null))) {
+            if (currentAppearanceName == null) {
+                currentAppearanceName = readApplicationEffectiveAppearanceName();
+                if (currentAppearanceName == null) {
+                    debug("Unable to get effective appearance");
+                    return false;
+                }
+            }
+            debug("Updating appearance data for " + currentAppearanceName);
+            AppearanceData data = readAppearanceData(currentAppearanceName);
+            if (data != null) {
+                Color ac = data.systemColors.get("controlAccent");
+                debug("Accent color: " + ac);
+                appearanceDataCache.install(currentAppearanceName, settings, data);
+                return true;
+            }
+            debug("Unable to read appearance data for " + currentAppearanceName);
+        }
+        return false;
+    }
+
+    private static @Nullable String readApplicationEffectiveAppearanceName()
+    {
+        String name = nativeGetApplicationEffectiveAppearanceName();
+        if (name == null) {
+            error("Unable to read application effective appearance name");
+        }
+        return name;
+    }
+
+    private static @Nullable AppearanceData getAppearanceData(@NotNull String appearanceName)
+    {
+        return appearanceDataCache.get(appearanceName, VAppearances::readAppearanceData);
+    }
+
+    private static @Nullable AppearanceData readAppearanceData(@NotNull String appearanceName)
+    {
+        Map<String,Color> systemColors = readSystemColors(appearanceName);
+        return systemColors != null ? AppearanceData.of(systemColors) : null;
+    }
+
+    private static @Nullable Map<String,Color> readSystemColors(@NotNull String appearanceName)
+    {
+        String data = nativeGetSystemColorsData(appearanceName);
+        if (data == null) {
+            error("Appearance " + appearanceName + " is not available");
+            return null;
+        }
+        return parseColorData(data);
+    }
+
+    private static @Nullable AppearanceSettings readAppearanceSettings()
     {
         int[] data = new int[4];
         Object[] objects = new Object[2];
         int rc = nativeGetAppearanceSettings(data, objects);
         if (rc != 0) {
-            throw new UnsupportedOperationException("Unable to get appearance settings");
+            error("Unable to get appearance settings");
+            return null;
         }
 
         try {
-            String appearanceName = (String) objects[0];
+            //String appearanceName = (String) objects[0];
             String highlightColorValue = (String) objects[1];
             int accentColorIndex = data[0];
             int tintedOption = data[1];
             int increaseContrastValue = data[2];
             int reduceTransparencyValue = data[3];
 
-            String highlightColorName
-              = highlightColorValue != null ? extractHighlightColorName(highlightColorValue) : null;
+            String highlightColorName = null;
             Color customHighlightColor = null;
-            if (highlightColorName == null && highlightColorValue != null) {
-                Color c = extractHighlightColor(highlightColorValue);
-                if (c == null) {
-                    // an unexpected error
-                    highlightColorName = "Graphite";
-                } else {
-                    customHighlightColor = c;
+
+            if (highlightColorValue != null) {
+                highlightColorName = extractHighlightColorName(highlightColorValue);
+                if (highlightColorName == null) {
+                    Color c = extractHighlightColor(highlightColorValue);
+                    if (c == null) {
+                        // an unexpected error
+                        highlightColorName = "Graphite";
+                    } else {
+                        customHighlightColor = c;
+                    }
                 }
             }
 
-            return AppearanceSettings.create(appearanceName,
+            return AppearanceSettings.create(
               increaseContrastValue != 0,
               reduceTransparencyValue != 0,
               tintedOption,
@@ -253,19 +360,23 @@ public class VAppearances
             );
 
         } catch (ClassCastException e) {
-            throw new UnsupportedOperationException("Unexpected appearance setting object");
+            error("Unexpected appearance setting object");
+            return null;
         }
     }
 
     private static @Nullable String extractHighlightColorName(@NotNull String s)
     {
-        int pos = s.lastIndexOf(" ");
-        if (pos > 0) {
-            String name = s.substring(pos+1);
-            if (name.equals("Other")) {
-                return null;
+        StringTokenizer st = new StringTokenizer(s, " ");
+        int count = 0;
+        while (st.hasMoreTokens()) {
+            String token = st.nextToken();
+            if (++count == 4) {
+                if (token.equals("Other")) {
+                    return null;
+                }
+                return token;
             }
-            return name;
         }
         return null;
     }
@@ -291,42 +402,36 @@ public class VAppearances
         return null;
     }
 
-    private static void invokeListeners(@NotNull Collection<ChangeListener> listeners, @NotNull VAppearance appearance)
-    {
-        SwingUtilities.invokeLater(() -> {
-            ChangeEvent event = new AppearanceChangeEvent(appearance);
-            for (ChangeListener listener : listeners) {
-                listener.stateChanged(event);
-            }
-        });
-    }
-
-    // Upcall from native code indicating a possible change to system settings related to system colors
+    /** Upcall from native code indicating a possible change to system settings related to system colors */
     private static void settingsChanged()
     {
-        if (DEBUG_FLAG) {
-            System.err.println("VAppearances: settings changed");
-        }
+        // It appears that this notification precedes the update to system colors, so updating in response might
+        // capture stale color data. Therefore, when effective appearance is supported, that upcall is used.
+        // Otherwise, a delay may be needed.
 
-        invalidateAppearanceSettings();
+        // Prior to 10.14, this is the only upcall.
+
+        debug("Settings changed: " + isEffectiveAppearanceSupported);
+        if (!isEffectiveAppearanceSupported) {
+            Timer t = new Timer(1000, e -> effectiveAppearanceChanged());
+            t.setRepeats(false);
+            t.start();
+        }
     }
 
-    // Upcall from native code indicating a possible change to the application effective appearance
+    /** Upcall from native code indicating a possible change to the application effective appearance. */
     private static void effectiveAppearanceChanged()
     {
-        if (DEBUG_FLAG) {
-            System.err.println("VAppearances: effective appearance changed");
-        }
+        // This upcall is made when the application appearance has changed. It appears that this upcall is also made in
+        // response to a system setting that affects appearances (in particular, the system colors associated with
+        // appearances). I'm not sure if that has always been the case.
 
-        invalidateAppearanceSettings();
-    }
+        // This upcall is made in 10.14 and later.
 
-    private static void notifyEffectiveAppearanceChanged()
-    {
         SwingUtilities.invokeLater(() -> {
-            ChangeEvent event = new ChangeEvent(VAppearances.class);
-            for (ChangeListener listener : getEffectiveAppearanceChangeListeners()) {
-                listener.stateChanged(event);
+            debug("Effective appearance changed");
+            if (invalidateAppearanceDataIfNeeded(isEffectiveAppearanceSupported)) {
+                notifyEffectiveAppearanceChanged();
             }
         });
     }
@@ -335,7 +440,8 @@ public class VAppearances
       Register a change listener to be called when the application effective appearance is changed, for example, from
       light to dark or vice versa. The concept of an application effective appearance was introduced in macOS 10.14.
       <p>
-      This listener may be called when the user specified accent color or highlight color changes.
+      This listener is also called when a system property changes that may affect the appearance system colors, such as
+      the user specified accent color or highlight color.
       <p>
       All invocations of the listener are performed on the AWT event dispatching thread.
 
@@ -344,7 +450,7 @@ public class VAppearances
 
     public static synchronized void addEffectiveAppearanceChangeListener(@NotNull ChangeListener listener)
     {
-        effectiveAppearanceChangeListeners.add(listener);
+        effectiveAppearanceHandlerStore.addChangeListener(listener);
     }
 
     /**
@@ -355,17 +461,48 @@ public class VAppearances
 
     public static synchronized void removeEffectiveAppearanceChangeListener(@NotNull ChangeListener listener)
     {
-        effectiveAppearanceChangeListeners.remove(listener);
+        effectiveAppearanceHandlerStore.removeChangeListener(listener);
     }
 
-    private static synchronized @NotNull Set<ChangeListener> getEffectiveAppearanceChangeListeners()
+    /**
+      Register a handler to be called when the application effective appearance is changed, for example, from light to
+      dark or vice versa. The concept of an application effective appearance was introduced in macOS 10.14.
+      <p>
+      The handler is also called when a system property changes that may affect the appearance system colors, such as
+      the user specified accent color or highlight color.
+      <p>
+      All invocations of the handler are performed on the AWT event dispatching thread.
+
+      @param r The listener to be registered.
+    */
+
+    public static synchronized void addEffectiveAppearanceChangeRunner(@NotNull Runnable r)
     {
-        return new HashSet<>(effectiveAppearanceChangeListeners);
+        effectiveAppearanceHandlerStore.addRunner(r);
+    }
+
+    /**
+      Unregister a previously registered change handler.
+
+      @param r The handler to be unregistered.
+    */
+
+    public static synchronized void removeEffectiveAppearanceChangeRunner(@NotNull Runnable r)
+    {
+        effectiveAppearanceHandlerStore.removeRunner(r);
+    }
+
+    private static void notifyEffectiveAppearanceChanged()
+    {
+        Handlers handlers = effectiveAppearanceHandlerStore.getHandlers();
+        if (handlers != null) {
+            SwingUtilities.invokeLater(handlers::invoke);
+        }
     }
 
     /**
       Register a change listener to be called when an appearance with a new name becomes known. All invocations of the
-      listener are performed on the AWT event dispatching thread. The parameter, an instance of {@link
+      listener are performed on the AWT event dispatching thread. The event, an instance of {@link
     AppearanceChangeEvent}, provides the object representing the appearance.
 
       @param listener The listener to be registered.
@@ -385,6 +522,16 @@ public class VAppearances
     public static synchronized void removeChangeListener(@NotNull ChangeListener listener)
     {
         changeListeners.remove(listener);
+    }
+
+    private static void invokeListeners(@NotNull Collection<ChangeListener> listeners, @NotNull VAppearance appearance)
+    {
+        SwingUtilities.invokeLater(() -> {
+            ChangeEvent event = new AppearanceChangeEvent(appearance);
+            for (ChangeListener listener : listeners) {
+                listener.stateChanged(event);
+            }
+        });
     }
 
     private static synchronized @NotNull Set<ChangeListener> getChangeListeners()
@@ -439,7 +586,7 @@ public class VAppearances
                     f = 1;
                 }
                 return f;
-            } catch (NumberFormatException ex) {
+            } catch (NumberFormatException ignore) {
             }
         }
         return null;
@@ -448,15 +595,35 @@ public class VAppearances
     public static void setDebugFlag(boolean b)
     {
         DEBUG_FLAG = b;
-        nativeSetDebugFlag(b);
+        if (isLoaded) {
+            nativeSetDebugFlag(b);
+        }
     }
 
     private static void checkInitialized()
       throws IOException
     {
-        if (!isInitialized) {
+        initialize();
+        if (!isLoaded) {
             throw new IOException("Unable to load VAppearances native library");
         }
+    }
+
+    private static void debug(@NotNull String msg)
+    {
+        if (DEBUG_FLAG) {
+            message(msg);
+        }
+    }
+
+    private static void error(@NotNull String msg)
+    {
+        message(msg);
+    }
+
+    private static void message(@NotNull String msg)
+    {
+        System.err.println("VAppearances: " + msg);
     }
 
     private static native int nativeGetAppearanceSettings(int @NotNull [] intData, Object @NotNull [] stringData);
@@ -467,6 +634,8 @@ public class VAppearances
                                                        @NotNull Runnable effectiveAppearanceListener);
 
     private static native @Nullable String nativeGetApplicationAppearanceName();
+    private static native @Nullable String nativeGetApplicationEffectiveAppearanceName();
+    private static native int nativeSetApplicationAppearance(@Nullable String appearanceName);
 
     private static native void nativeSetDebugFlag(boolean b);
 }

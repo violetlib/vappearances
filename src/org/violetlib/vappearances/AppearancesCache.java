@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2025 Alan Snyder.
+ * Copyright (c) 2025-2026 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -34,13 +34,16 @@ import java.util.Map;
         cache.clear();
     }
 
-    public synchronized @NotNull Result get(@NotNull String appearanceName)
+    public synchronized @NotNull Result get(@NotNull String appearanceName, boolean isEffectiveAppearanceSupported)
     {
         VAppearance appearance = cache.get(appearanceName);
         if (appearance != null) {
             return new Result(appearance, false);
         }
         boolean isDark = appearanceName.contains("Dark");
+        if (isDark && !isEffectiveAppearanceSupported) {
+            return get("NSAppearanceNameAqua", false);
+        }
         appearance = VAppearanceImpl.create(appearanceName, isDark);
         cache.put(appearanceName, appearance);
         return new Result(appearance, true);

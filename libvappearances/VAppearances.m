@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2018-2025 Alan Snyder.
+ * Copyright (c) 2018-2026 Alan Snyder.
  * All rights reserved.
  *
  * You may not use, copy or modify this file, except in compliance with the license agreement. For details see
@@ -31,6 +31,7 @@ static JavaVM *vm;
 static pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;  // protects isInitialized and appearances
 
 static void invokeRunnable(jobject callback);
+static NSString *getCurrentAppearanceDebugInfo();
 
 static BOOL DEBUG_FLAG;
 
@@ -44,7 +45,7 @@ static BOOL DEBUG_FLAG;
                        context:(void *)context
 {
     if (DEBUG_FLAG) {
-        NSLog(@"VAppearances [native]: effective appearance changed");
+        NSLog(@"VAppearances [native]: %@ changed - %@", keyPath, getCurrentAppearanceDebugInfo());
     }
 
     if (effectiveAppearanceCallback != NULL) {
@@ -152,32 +153,100 @@ static void registerDefaultColor(NSMutableString *stream, NSString *name, CGFloa
     [stream appendFormat: @"%@: %.2f %.2f %.2f %.2f\n", name, red, green, blue, alpha];
 }
 
+static NSAppearance *getCurrentAppearanceMainThread()
+{
+    if (@available(macOS 11, *)) {
+        return NSAppearance.currentDrawingAppearance;
+    } else {
+        return NSAppearance.currentAppearance;
+    }
+}
+
+static NSAppearance *getCurrentAppearance()
+{
+    __block NSAppearance *result;
+    runOnMainThread(^() {
+        result = [getCurrentAppearanceMainThread() retain];
+    });
+    return [result autorelease];
+}
+
+static NSString *getEffectiveAppearanceNameMainThread()
+{
+    if (@available(macOS 10.14, *)) {
+        return [NSApp.effectiveAppearance name];
+    } else {
+        return NSAppearanceNameAqua;
+    }
+}
+
+static NSString *getEffectiveAppearanceName()
+{
+    __block NSString *result;
+    runOnMainThread(^() {
+        result = [getEffectiveAppearanceNameMainThread() retain];
+    });
+    return [result autorelease];
+}
+
+static NSString *getAppearanceName(NSAppearance *appearance)
+{
+    return appearance ? appearance.name : @"None";
+}
+
+static NSColor *getControlAccentRGBColor()
+{
+    NSColor *color;
+    if (@available(macOS 10.14, *)) {
+        color = NSColor.controlAccentColor;
+    } else if (@available(macOS 10.10, *)) {
+        color = [NSColor colorForControlTint:NSColor.currentControlTint];
+    } else {
+        return nil;
+    }
+    return [color colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
+}
+
+static NSString *getColorDescription(NSColor *c)
+{
+    if (c) {
+      return [NSString stringWithFormat:@"%d %d %d %d",
+        (int) (c.redComponent * 255),
+        (int) (c.greenComponent * 255),
+        (int) (c.blueComponent * 255),
+        (int) (c.alphaComponent * 255)];
+    }
+    return @"Unknown";
+}
+
+static NSString *getCurrentAppearanceDebugInfo()
+{
+    NSAppearance *appearance = getCurrentAppearance();
+    NSString *appearanceName = getAppearanceName(appearance);
+    NSColor *accentColor = getControlAccentRGBColor();
+    NSString *accentColorString = getColorDescription(accentColor);
+    return [NSString stringWithFormat:@"%@ %@", appearanceName, accentColorString];
+}
+
 static NSString *obtainSystemColorsForCurrentAppearance()
 {
-    NSString *appearanceName = nil;
+    NSAppearance *appearance = getCurrentAppearance();
+    NSString *appearanceName = getAppearanceName(appearance);
 
-    if (@available(macOS 11, *)) {
-        if (NSAppearance.currentDrawingAppearance != nil) {
-            appearanceName = NSAppearance.currentDrawingAppearance.name;
-            if (DEBUG_FLAG) {
-               NSLog(@"VAppearances [native]: fetching system colors for appearance %@", appearanceName);
-            }
-        }
+    if (DEBUG_FLAG) {
+        NSLog(@"VAppearances [native]: fetching system colors for appearance %@", appearanceName);
     }
 
     NSString *hcs = [NSUserDefaults.standardUserDefaults stringForKey:@"AppleHighlightColor"];
-
     id acv = [NSUserDefaults.standardUserDefaults objectForKey:@"AppleAccentColor"];
-
     NSInteger tintedOption = [NSUserDefaults.standardUserDefaults integerForKey:@"NSGlassDiffusionSetting"];
-
     BOOL increaseContrastOption = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast;
-
     BOOL reduceTransparencyOption = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
 
     if (DEBUG_FLAG) {
+        NSColor *accentColor = getControlAccentRGBColor();
         NSLog(@"Highlight color: %@", hcs ? hcs : @"Accent");
-        NSLog(@"Accent color: %@", acv ? acv : @"Multicolor");
+        NSLog(@"Accent color: %@ [%@]", acv ? acv : @"Multicolor", getColorDescription(accentColor));
         NSLog(@"Tinted option: %ld", tintedOption);
         NSLog(@"Increase contrast option: %@", increaseContrastOption ? @"YES" : @"NO");
         NSLog(@"Reduce transparency option: %@", reduceTransparencyOption ? @"YES" : @"NO");
@@ -234,9 +303,9 @@ static NSString *obtainSystemColorsForCurrentAppearance()
         registerColor(stream, NSColor.alternateSelectedControlColor, @"selectedContentBackground");
         registerColor(stream, NSColor.secondarySelectedControlColor, @"unemphasizedSelectedContentBackground");
         registerColors(stream, NSColor.controlAlternatingRowBackgroundColors, @"alternatingContentBackground");
-        NSControlTint controlTint = NSColor.currentControlTint;
-        NSColor *controlTintColor = [[NSColor colorForControlTint:controlTint] colorUsingColorSpace:NSColorSpace.sRGBColorSpace];
-        registerDefaultColor(stream, @"controlAccent", controlTintColor.redComponent, controlTintColor.greenComponent, controlTintColor.blueComponent, controlTintColor.alphaComponent);
+        NSColor *controlTintColor = getControlAccentRGBColor();
+        registerDefaultColor(stream, @"controlAccent", controlTintColor.redComponent, controlTintColor.greenComponent,
+        controlTintColor.blueComponent, controlTintColor.alphaComponent);
     }
     if (@available(macOS 10.13, *)) {
         registerColor(stream, NSColor.findHighlightColor, @"findHighlight");
@@ -292,14 +361,18 @@ static NSString *obtainSystemColorsForNamedAppearance(NSString *appearanceName)
     ensureInitialized();
     pthread_mutex_unlock(&mutex);
 
-    if (@available(macOS 11, *)) {
-        NSAppearance *appearance = getNamedAppearance(appearanceName);
-        if (appearance != nil) {
+    NSAppearance *appearance = getNamedAppearance(appearanceName);
+    if (appearance != nil) {
+        if (@available(macOS 11, *)) {
             [appearance performAsCurrentDrawingAppearance: ^(){result = obtainSystemColorsForCurrentAppearance();}];
+        } else if (@available(macOS 10.14, *)) {
+            NSAppearance *old = NSAppearance.currentAppearance;
+            NSAppearance.currentAppearance = appearance;
+            result = obtainSystemColorsForCurrentAppearance();
+            NSAppearance.currentAppearance = old;
+        } else {
+            result = obtainSystemColorsForCurrentAppearance();
         }
-    }
-    if (result == nil) {
-        result = obtainSystemColorsForCurrentAppearance();
     }
 
     return result;
@@ -317,12 +390,7 @@ JNIEXPORT jint JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApp
     int *data = (*env)->GetIntArrayElements(env, jints, NULL);
 
     if (objectCount > 0) {
-        NSAppearanceName appearanceName;
-        if (@available(macOS 10.14, *)) {
-            appearanceName = [NSApp.effectiveAppearance name];
-        } else {
-            appearanceName = NSAppearanceNameAqua;
-        }
+        NSString *appearanceName = getAppearanceName(getCurrentAppearance());
         (*env)->SetObjectArrayElement(env, jobjects, 0, TO_JAVA_STRING(appearanceName));
     }
 
@@ -374,17 +442,19 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 {
     // Obtain the system colors for the appearance specified by name.
 
-    __block jstring result = nil;
+    jstring result = nil;
+    __block NSString *data;
 
     COCOA_ENTER();
 
+    __block NSString *appearanceName = TO_NSSTRING(jAppearanceName);
     runOnMainThread(^() {
-        NSString *appearanceName = TO_NSSTRING(jAppearanceName);
-        NSString *s = obtainSystemColorsForNamedAppearance(appearanceName);
-        if (s != nil) {
-            result = TO_JAVA_STRING(s);
-        }
+        data = [obtainSystemColorsForNamedAppearance(appearanceName) retain];
     });
+
+    if (data != nil) {
+        result = TO_JAVA_STRING(data);
+    }
 
     COCOA_EXIT();
 
@@ -444,11 +514,10 @@ JNIEXPORT void VAppearances_updateAppearance(NSAppearance *appearance)
 static void systemColorsChanged()
 {
     // This function is called when a setting is changed that might affect the value of the system colors.
-
     // This function is called with no lock.
 
     if (DEBUG_FLAG) {
-        NSLog(@"VAppearances [native]: system colors changed");
+        NSLog(@"VAppearances [native]: system colors changed - %@", getCurrentAppearanceDebugInfo());
     }
 
     if (settingsCallback) {
@@ -459,11 +528,10 @@ static void systemColorsChanged()
 static void displayOptionsChanged()
 {
     // This function is called when an accessibility display option is changed.
-
     // This function is called with no lock.
 
     if (DEBUG_FLAG) {
-        NSLog(@"VAppearances [native]: display options changed");
+        NSLog(@"VAppearances [native]: display options changed - %@", getCurrentAppearanceDebugInfo());
     }
 
     if (settingsCallback) {
@@ -493,6 +561,10 @@ static void registerListeners(JNIEnv *env, jobject settingsListener, jobject eff
                 myObserver = [[MyObserver alloc] init];
                 [NSApp addObserver:myObserver
                         forKeyPath:@"effectiveAppearance"
+                           options:0
+                           context:NULL];
+                [NSApp addObserver:myObserver
+                        forKeyPath:@"appearance"
                            options:0
                            context:NULL];
             }
@@ -547,10 +619,68 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 
     NSAppearanceName appearanceName;
     if (@available(macOS 10.14, *)) {
-        appearanceName = [NSApp.effectiveAppearance name];
+        appearanceName = [NSApp.appearance name];
     } else {
         appearanceName = NSAppearanceNameAqua;
     }
+    result = TO_JAVA_STRING(appearanceName);
+
+    COCOA_EXIT();
+
+    return result;
+}
+
+/*
+ * Class:     org_violetlib_vappearances_VAppearances
+ * Method:    nativeSetApplicationAppearance
+ * Signature: (Ljava/lang/String;)I
+ */
+JNIEXPORT jint JNICALL Java_org_violetlib_vappearances_VAppearances_nativeSetApplicationAppearance
+  (JNIEnv *env, jclass cl, jstring jAppearanceName)
+{
+    jint result = -1;
+
+    COCOA_ENTER();
+
+    if (@available(macOS 10.14, *)) {
+        NSAppearance *appearance = nil;
+        if (jAppearanceName) {
+            NSString *appearanceName = TO_NSSTRING(jAppearanceName);
+            NSAppearance *app = [NSAppearance appearanceNamed: appearanceName];
+            if ([appearanceName isEqualToString: app.name]) {
+                // If the appearance name is not recognized, some other appearance is returned.
+                appearance = app;
+                result = 0;
+            }
+        } else {
+            result = 0;
+        }
+
+        if (result == 0) {
+            runOnMainThread(^() {
+                NSApp.appearance = appearance;
+            });
+        }
+    }
+
+    COCOA_EXIT();
+
+    return result;
+}
+
+/*
+ * Class:     org_violetlib_vappearances_VAppearances
+ * Method:    nativeGetApplicationEffectiveAppearanceName
+ * Signature: ()Ljava/lang/String;
+ */
+JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApplicationEffectiveAppearanceName
+  (JNIEnv *env, jclass cl)
+{
+    jstring result = NULL;
+
+    COCOA_ENTER();
+
+    NSAppearanceName appearanceName = getEffectiveAppearanceName();
     result = TO_JAVA_STRING(appearanceName);
 
     COCOA_EXIT();
