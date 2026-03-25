@@ -387,47 +387,54 @@ JNIEXPORT jint JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGetApp
 
     jsize intCount = (*env)->GetArrayLength(env, jints);
     jsize objectCount = (*env)->GetArrayLength(env, jobjects);
-    int *data = (*env)->GetIntArrayElements(env, jints, NULL);
+
+    // Read all native values on the main thread
+    __block NSString *appearanceName = nil;
+    __block NSString *hcs = nil;
+    __block NSInteger accentValue = -2;
+    __block NSInteger tintedOption = 0;
+    __block BOOL increaseContrastOption = NO;
+    __block BOOL reduceTransparencyOption = NO;
+
+    runOnMainThread(^() {
+        appearanceName = [getAppearanceName(getCurrentAppearanceMainThread()) retain];
+        hcs = [[NSUserDefaults.standardUserDefaults stringForKey:@"AppleHighlightColor"] retain];
+        id acv = [NSUserDefaults.standardUserDefaults objectForKey:@"AppleAccentColor"];
+        accentValue = (acv != nil) ? [acv integerValue] : -2;
+        tintedOption = [NSUserDefaults.standardUserDefaults integerForKey:@"NSGlassDiffusionSetting"];
+        increaseContrastOption = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast;
+        reduceTransparencyOption = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
+    });
 
     if (objectCount > 0) {
-        NSString *appearanceName = getAppearanceName(getCurrentAppearance());
         (*env)->SetObjectArrayElement(env, jobjects, 0, TO_JAVA_STRING(appearanceName));
     }
-
     if (objectCount > 1) {
-        NSString *hcs = [NSUserDefaults.standardUserDefaults stringForKey:@"AppleHighlightColor"];
         (*env)->SetObjectArrayElement(env, jobjects, 1, TO_JAVA_STRING(hcs));
     }
+    [appearanceName release];
+    [hcs release];
 
+    int *data = (*env)->GetIntArrayElements(env, jints, NULL);
     if (data != NULL) {
-
         if (intCount > 0) {
-            id acv = [NSUserDefaults.standardUserDefaults objectForKey:@"AppleAccentColor"];
-            // map null (multicolor) to -2
-            data[0] = (acv != nil) ? [acv integerValue] : -2;
+            data[0] = accentValue;
         }
-
         if (intCount > 1) {
-            NSInteger tintedOption = [NSUserDefaults.standardUserDefaults integerForKey:@"NSGlassDiffusionSetting"];
             data[1] = tintedOption;
         }
-
         if (intCount > 2) {
-            BOOL increaseContrastOption = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldIncreaseContrast;
             if (DEBUG_FLAG) {
                 NSLog(@"Increase contrast option: %@", increaseContrastOption ? @"YES" : @"NO");
             }
             data[2] = increaseContrastOption;
         }
-
         if (intCount > 3) {
-            BOOL reduceTransparencyOption = NSWorkspace.sharedWorkspace.accessibilityDisplayShouldReduceTransparency;
             if (DEBUG_FLAG) {
                 NSLog(@"Reduce transparency option: %@", reduceTransparencyOption ? @"YES" : @"NO");
             }
             data[3] = reduceTransparencyOption;
         }
-
         (*env)->ReleaseIntArrayElements(env, jints, data, 0);
         result = 0;
     }
@@ -617,13 +624,17 @@ JNIEXPORT jstring JNICALL Java_org_violetlib_vappearances_VAppearances_nativeGet
 
     COCOA_ENTER();
 
-    NSAppearanceName appearanceName;
+    __block NSAppearanceName appearanceName;
     if (@available(macOS 10.14, *)) {
-        appearanceName = [NSApp.appearance name];
+        runOnMainThread(^() {
+            appearanceName = [[NSApp.appearance name] retain];
+        });
+        result = TO_JAVA_STRING(appearanceName);
+        [appearanceName release];
     } else {
         appearanceName = NSAppearanceNameAqua;
+        result = TO_JAVA_STRING(appearanceName);
     }
-    result = TO_JAVA_STRING(appearanceName);
 
     COCOA_EXIT();
 
